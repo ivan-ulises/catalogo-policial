@@ -5,6 +5,20 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/).
 
 ---
 
+## [1.3.0] — 2026-10-05
+### Añadido
+* **Fase 1 (Blindaje Serverless y Base de Datos):**
+  * Recálculo financiero forzoso en el servidor (`netlify/functions/orders.js`) consultando la tabla `products` de Supabase; rechazo de montos manipulados por cliente.
+  * Snapshot inmutable por partida (`items_snapshot` en formato JSONB) preservando precios y especificaciones ante cambios futuros de catálogo.
+  * Idempotencia estricta mediante `idempotency_key` con restricción `UNIQUE` en PostgreSQL para mitigar duplicados por doble clic o reintentos de red.
+  * Generador de folios canónicos en servidor con restricción `UNIQUE(folio)` (`COT-YYYY-XXXXXXX`).
+  * Mecanismos de protección anti-abuso: rate limiting en memoria por IP (ventana deslizante de 10 req/min), campo honeypot oculto y soporte condicional para Cloudflare Turnstile.
+  * Resiliencia transaccional con Resend: aislamiento de fallos de correo para no bloquear la persistencia del pedido (`email_status: 'pending'|'sent'|'failed'`).
+  * Suite de pruebas unitarias automatizada en `tests/orders_validation.test.js`.
+  * Migración SQL aditiva y versionada en `supabase/migrations/20261005_fase1_blindaje_orders.sql` con script de rollback documentado.
+
+---
+
 ## [1.2.0] — 2026-10-05
 ### Añadido
 * Motor de generación documental vectorial client-side utilizando `jsPDF (v2.5.1)` y `jsPDF-AutoTable (v3.8.2)`.

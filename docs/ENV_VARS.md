@@ -13,6 +13,11 @@ Lista oficial de variables de entorno requeridas para la ejecución de la plataf
 | `SUPABASE_ANON_KEY` | Build & Runtime (Client) | Pública (RLS protegida) | Clave pública anónima de Supabase. Permite al frontend consultar la tabla `products`. |
 | `SUPABASE_SERVICE_KEY` | Runtime (Functions únicamente) | **CRÍTICA / PRIVADA** | Clave maestra (Service Role) con bypass de RLS. Utilizada exclusivamente en `netlify/functions/orders.js` para insertar registros en `orders`. **NUNCA exponer al frontend**. |
 | `RESEND_API_KEY` | Runtime (Functions únicamente) | **CRÍTICA / PRIVADA** | Token de autenticación de Resend API. Utilizado para autorizar el despacho de correos transaccionales con el PDF adjunto. |
+| `ALLOWED_ORIGIN` | Runtime (Functions únicamente) | Pública / Config | Origen permitido para cabeceras CORS (ej. `https://joyful-dolphin-d07913.netlify.app` o tu dominio final). Si no se define, permite `*`. |
+| `TURNSTILE_SECRET_KEY` | Runtime (Functions únicamente) | **PRIVADA** | Clave secreta para validación de Cloudflare Turnstile anti-bots. Si no está configurada, la validación se omite de forma transparente. |
+| `RESEND_FROM_EMAIL` | Runtime (Functions únicamente) | Pública / Config | Remitente verificado en Resend (ej. `Suministros A.R. <cotizaciones@tudominio.com>`). Por defecto usa `onboarding@resend.dev`. |
+| `RESEND_REPLY_TO` | Runtime (Functions únicamente) | Pública / Config | Dirección de respuesta opcional para el cliente que recibe la cotización. |
+| `ORDERS_NOTIFICATION_EMAIL` | Runtime (Functions únicamente) | Pública / Config | Buzón destino de pedidos de operaciones (por defecto `terminalasuncion.1@gmail.com`). |
 
 ---
 

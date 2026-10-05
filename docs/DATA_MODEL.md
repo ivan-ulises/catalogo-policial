@@ -38,7 +38,17 @@ Almacena el histórico de cotizaciones generadas por municipios y corporaciones.
 | `num_partidas` | `INTEGER` | `NO` | Número de renglones o productos distintos en la cotización. |
 | `total_piezas` | `INTEGER` | `NO` | Sumatoria total de unidades físicas solicitadas. |
 | `total_mxn` | `NUMERIC` | `NO` | Importe monetario total en pesos mexicanos con IVA. |
+| `subtotal_mxn` | `NUMERIC` | `SÍ` | Importe acumulado antes de IVA (calculado en servidor). |
+| `iva_mxn` | `NUMERIC` | `SÍ` | Impuesto al Valor Agregado del 16% (calculado en servidor). |
 | `status` | `TEXT` | `SÍ` | Estado operativo de la cotización (`pendiente`, `en_proceso`, `entregado`, default `pendiente`). |
+| `idempotency_key` | `TEXT` | `SÍ` (UNIQUE) | Clave de idempotencia única para prevenir duplicados por reintentos o doble clic. |
+| `items_snapshot` | `JSONB` | `SÍ` | Snapshot inmutable de las partidas (precios unitarios, tallas, colores y subtotales al momento de compra). |
+| `email_status` | `TEXT` | `SÍ` | Estado de entrega del correo con PDF vía Resend (`pending`, `sent`, `failed`). |
+| `email_error` | `TEXT` | `SÍ` | Detalle o mensaje de error en caso de fallo en el despacho por Resend. |
+
+### Restricciones y Llaves Únicas en `orders`:
+* `orders_folio_key`: Restricción `UNIQUE(folio)` para garantizar unicidad contable.
+* `orders_idempotency_key_key`: Restricción `UNIQUE(idempotency_key)` para idempotencia.
 
 ### Políticas de Row Level Security (RLS) en `orders`:
 * **RLS Habilitado:** Sí (`ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;`).
