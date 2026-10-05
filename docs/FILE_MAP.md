@@ -1,16 +1,18 @@
-# Mapa de Archivos
+# Mapa de Archivos del Proyecto
 
-| Archivo / Carpeta | Qué hace | Cuándo tocarlo | Depende de |
-|-------------------|----------|----------------|------------|
-| `index.html` | Punto de entrada, esqueleto semántico, links a CSS, CDN de Tailwind y configuración base. | Para cambiar estructura global, `meta` tags, título, o agregar contenedores globales (ej. modales). | Tailwind (CDN), `main.css`, `main.js` |
-| `main.js` | Orquestador principal. Inicializa todos los componentes y enlaza el bus de eventos global. | Para orquestar nuevos módulos o cambiar la carga inicial. | Todos los submódulos. |
-| `api/supabaseClient.js` | Conector al REST API de Supabase para leer la tabla de productos de forma anónima. | Si las columnas en la DB cambian o si se añaden filtros remotos. | Supabase REST, `format.js` |
-| `components/catalog.js` | Renderizador masivo del grid de productos y la barra de filtros por partida. | Modificaciones de diseño de tarjeta, o si se agregan selectores especiales (ej. Fornitura). | `format.js` |
-| `components/cart.js` | Gestor del estado del pedido (sidebar derecho). Suma totales e ítems. | Para cambiar el cómo se visualizan las listas dentro de "Mi Pedido". | `format.js` |
-| `utils/orders.js` | Controlador del Checkout (modal de cotización y modal admin). Contiene lógica de conversión a PDF. | Para cambiar la estructura de la cotización, el PDF o los campos de validación del cliente. | Netlify Function (`/orders`), `jsPDF` + `jspdf-autotable` |
-| `utils/whatsapp.js` | Construye texto preformateado y levanta la URL de `wa.me` para redirigir a WhatsApp. | Para modificar el número destino o el machote de saludo y lista de productos. | `format.js` |
-| `utils/format.js` | Utilidades puras de conversión a moneda (MXN) y control de fechas/strings. | Para ajustes regionales o formatos. | Ninguno. |
-| `netlify/functions/orders.js` | Backend Serverless en Node.js. Escribe en base de datos Supabase usando credenciales admin y dispara emails por Resend. | Para cambiar la lógica de base de datos, el armado del HTML de los correos transaccionales, etc. | `.env`, Node.js, API de Resend |
-| `scripts/migrate.js` | Herramienta temporal de migración de datos. Analiza el antiguo CSV de Google Sheets y lo inserta en Supabase. | No se suele tocar, se usó para la migración inicial. | Supabase JS SDK |
-| `supabase_schema.sql` | Esquema de base de datos en SQL con comandos de configuración de tablas y RLS. | Para añadir columnas en la DB. | PostgreSQL |
-| `assets/css/main.css` | Estilos base personalizados, animaciones globales de UI y sobreescrituras de scroll. | Ajustes finos que Tailwind no cubre fácilmente (scrollbars, animaciones `fade-up`). | `index.html` |
+Guía de referencia rápida para ubicar responsabilidades, dependencias y eventos de cada archivo del repositorio.
+
+| Archivo / Ruta | Responsabilidad Principal | Cuándo Tocarlo | Eventos Emitidos | Eventos Escuchados | Dependencias Clave |
+|---|---|---|---|---|---|
+| `index.html` | Estructura base, contenedor principal del grid y modales, enlaces CDN (Tailwind, jsPDF, AutoTable). | Para modificar maquetación base, meta tags, títulos o scripts de bibliotecas externas. | Ninguno | Ninguno | Tailwind CDN, jsPDF CDN, `main.js`, `assets/css/main.css` |
+| `main.js` | Orquestador general del ciclo de vida de la aplicación. Inicializa módulos y actúa como receptor del bus global de eventos. | Para orquestar nuevos módulos globales o añadir manejadores de eventos centrales. | `ui:toast` (internamente) | `DOMContentLoaded`, `ui:toast`, `wa:floatClick`, `cart:updated` | `api/supabaseClient.js`, `components/catalog.js`, `components/cart.js`, `utils/orders.js`, `utils/whatsapp.js` |
+| `api/supabaseClient.js` | Cliente de conexión a la API REST pública de Supabase para obtener el catálogo de productos. | Si cambian columnas de la tabla `products` o se implementa paginación remota. | Ninguno | Ninguno | Supabase REST API (`SUPABASE_URL`, `SUPABASE_ANON_KEY`) |
+| `components/catalog.js` | Renderizado del grid de productos, búsqueda en vivo, filtros por partida FORTAMUN y selector de variantes/tallas/colores. | Para rediseñar tarjetas de producto, añadir nuevos filtros o modificar selección de opciones. | `product:add`, `ui:toast` | Ninguno | `utils/format.js` |
+| `components/cart.js` | Manejo del estado del carrito en memoria (sidebar derecho), cálculo de partidas, cantidades y totales. | Para ajustar la lógica de cálculo del pedido o la interfaz del sidebar de compras. | `cart:updated`, `cart:checkout`, `cart:whatsapp`, `ui:toast` | `product:add` | `utils/format.js` |
+| `utils/orders.js` | Controlador del modal de cotización, generador de PDF vectorial Carta (`jsPDF` + `autoTable`), validación de municipio y despacho a Netlify Functions. | Para modificar campos del formulario de cotización, diseño del PDF o lógica de envío. | `ui:toast`, `cart:whatsapp` | `cart:checkout` | `jsPDF`, `jsPDF-AutoTable`, `utils/format.js`, Netlify Function (`/orders`) |
+| `utils/whatsapp.js` | Formateador de texto institucional para WhatsApp y gestor del botón flotante de WhatsApp. | Para cambiar el número telefónico de atención o el formato del mensaje predeterminado. | `wa:floatClick`, `ui:toast` | `cart:whatsapp` | `utils/format.js` |
+| `utils/format.js` | Funciones puras de formateo de moneda (`formatMXN`), fechas (`getFormattedDate`) y sanitización. | Para cambios en el formato regional de precios o fechas. | Ninguno | Ninguno | `Intl.NumberFormat`, `Intl.DateTimeFormat` |
+| `netlify/functions/orders.js` | Endpoint serverless en Node.js. Inserta cotizaciones en la tabla `orders` de Supabase con `SERVICE_KEY` y envía email con PDF adjunto vía Resend. | Para cambiar la persistencia en DB, estructura del correo HTML o manejo de adjuntos. | N/A (Serverless) | N/A (HTTP POST) | `process.env`, Supabase REST API, Resend API |
+| `supabase_schema.sql` | Esquema DDL de referencia para las tablas `products` y `orders` con sus políticas de Row Level Security (RLS). | Como referencia histórica del esquema inicial de Supabase. | N/A | N/A | PostgreSQL |
+| `assets/css/main.css` | Reglas CSS personalizadas complementarias (animaciones, estados y ajustes finos). | Ajustes de estilo que no se resuelvan con utilidades directas de Tailwind. | Ninguno | Ninguno | `index.html` |
+| `netlify.toml` | Configuración de despliegue en Netlify (publish directory, cabeceras de seguridad y redirecciones). | Para ajustar cabeceras HTTP, variables de build o reglas de enrutamiento. | N/A | N/A | Netlify Build Bot |
