@@ -31,14 +31,19 @@ exports.handler = async (event, context) => {
     const supabaseUrl = process.env.SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
     
-    // Convertir el payload estructurado a la fila de la tabla orders
+        // Convertir el payload estructurado a la fila de la tabla orders
+    const detalles_pedido = payload.items.map(i => `${i.qty}x ${i.name}`).join(' | ');
+    const num_partidas = payload.items.length;
+    const total_piezas = payload.items.reduce((acc, i) => acc + i.qty, 0);
+    const folioStr = Date.now().toString(36).toUpperCase();
+
     const orderRow = {
-      folio: payload.fecha.replace(/[^0-9]/g, '').substring(0, 10), // Ejemplo básico
+      folio: folioStr,
       fecha: new Date().toISOString(),
       municipio: payload.municipio,
-      detalles_pedido: payload.detalles_pedido,
-      num_partidas: payload.num_partidas,
-      total_piezas: payload.total_piezas,
+      detalles_pedido: detalles_pedido,
+      num_partidas: num_partidas,
+      total_piezas: total_piezas,
       total_mxn: payload.total,
       status: 'pendiente'
     };
@@ -61,7 +66,7 @@ exports.handler = async (event, context) => {
     }
 
     const insertedOrder = (await supaRes.json())[0];
-    const folioReal = insertedOrder.id.split('-')[0].toUpperCase();
+    const folioReal = insertedOrder.folio;
 
     // 2. Enviar Correo con Resend
     // Nota: Hasta que no verifiques un dominio en Resend, 
@@ -73,10 +78,10 @@ exports.handler = async (event, context) => {
       <h2>Nuevo Pedido Recibido</h2>
       <p><strong>Folio:</strong> ${folioReal}</p>
       <p><strong>Municipio:</strong> ${payload.municipio}</p>
-      <p><strong>Total Piezas:</strong> ${payload.total_piezas}</p>
-      <p><strong>Total MXN:</strong> ${payload.total_str}</p>
+      <p><strong>Total Piezas:</strong> ${total_piezas}</p>
+      <p><strong>Total MXN:</strong> ${Number(payload.total).toFixed(2)}</p>
       <br/>
-      <p>Adjunto encontrarás el PDF con la cotización generada por el sistema.</p>
+      <p>Adjunto encontraras el PDF con la cotizacion generada por el sistema.</p>
     `;
 
     const attachments = [];
