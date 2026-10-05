@@ -45,6 +45,9 @@ Almacena el histórico de cotizaciones generadas por municipios y corporaciones.
 | `items_snapshot` | `JSONB` | `SÍ` | Snapshot inmutable de las partidas (precios unitarios, tallas, colores y subtotales al momento de compra). |
 | `email_status` | `TEXT` | `SÍ` | Estado de entrega del correo con PDF vía Resend (`pending`, `sent`, `failed`). |
 | `email_error` | `TEXT` | `SÍ` | Detalle o mensaje de error en caso de fallo en el despacho por Resend. |
+| `internal_notes` | `TEXT` | `SÍ` | Notas internas confidenciales de seguimiento para operadores. |
+| `updated_at` | `TIMESTAMPTZ` | `SÍ` | Fecha y hora de última modificación operativa. |
+| `updated_by` | `TEXT` | `SÍ` | Correo o identificador del usuario administrador que realizó el cambio. |
 
 ### Restricciones y Llaves Únicas en `orders`:
 * `orders_folio_key`: Restricción `UNIQUE(folio)` para garantizar unicidad contable.
@@ -52,12 +55,48 @@ Almacena el histórico de cotizaciones generadas por municipios y corporaciones.
 
 ### Políticas de Row Level Security (RLS) en `orders`:
 * **RLS Habilitado:** Sí (`ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;`).
-* **Lectura (`SELECT`):** Restringida (`FOR SELECT USING (false);`). Ningún usuario anónimo desde el cliente puede listar o ver pedidos ajenos.
-* **Inserción (`INSERT`):** Permitida exclusivamente para el backend serverless (`netlify/functions/orders.js`) que se autentica mediante `SUPABASE_SERVICE_KEY` para garantizar integridad.
+* **Lectura (`SELECT`):** Restringida al público; permitida exclusivamente a usuarios autenticados con rol en `admin_users` mediante `public.is_admin()`.
+* **Actualización (`UPDATE`):** Permitida exclusivamente a administradores verificados (`public.is_admin()`).
+* **Inserción (`INSERT`):** Permitida exclusivamente para el backend serverless (`netlify/functions/orders.js`) con `SUPABASE_SERVICE_KEY`.
 
 ---
 
-## 3. Consideraciones para Migraciones Futuras
+## 3. Tabla `public.admin_users` (Administradores Autorizados)
+Control de acceso y roles administrativos vinculado a `auth.users` de Supabase.
+
+| Columna | Tipo de Dato | Nulo | Descripción |
+|---|---|---|---|
+| `id` | `UUID` | `NO` (PK) | Llave foránea hacia `auth.users(id)`. |
+| `email` | `TEXT` | `NO` (UNIQUE) | Correo electrónico institucional del operador. |
+| `role` | `TEXT` | `NO` | Rol administrativo (`admin`, `superadmin`, `operador`, default `admin`). |
+| `created_at` | `TIMESTAMPTZ` | `SÍ` | Fecha de alta del operador. |
+| `last_login` | `TIMESTAMPTZ` | `SÍ` | Registro de última sesión. |
+
+### Políticas RLS en `admin_users`:
+* **Lectura:** Un usuario autenticado solo puede leer su propio registro (`auth.uid() = id`).
+
+---
+
+## 4. Tabla `public.order_audit_logs` (Bitácora de Auditoría)
+Historial inmutable de cambios y acciones sobre requisiciones.
+
+| Columna | Tipo de Dato | Nulo | Descripción |
+|---|---|---|---|
+| `id` | `UUID` | `NO` (PK) | Identificador del evento de auditoría. |
+| `order_id` | `UUID` | `NO` (FK) | Vínculo hacia `public.orders(id)`. |
+| `action` | `TEXT` | `NO` | Acción ejecutada (`status_change`, `note_added`, `email_resent`). |
+| `previous_state` | `JSONB` | `SÍ` | Estado anterior. |
+| `new_state` | `JSONB` | `SÍ` | Nuevo estado asignado. |
+| `user_id` | `UUID` | `SÍ` | Operador que ejecutó la acción. |
+| `user_email` | `TEXT` | `SÍ` | Correo del operador. |
+| `created_at` | `TIMESTAMPTZ` | `SÍ` | Timestamp del evento (default `NOW()`). |
+
+### Políticas RLS en `order_audit_logs`:
+* **Lectura e Inserción:** Exclusiva para administradores verificados (`public.is_admin()`).
+
+---
+
+## 5. Consideraciones para Migraciones Futuras
 * Todos los cambios a estas tablas deben ser **aditivos** (añadir columnas con valor por defecto o nulas).
 * Archivos versionados en el directorio `supabase/migrations/<timestamp>_<descripcion>.sql`.
 * Prohibido ejecutar sentencias destructivas (`DROP TABLE`, `DROP COLUMN`) en producción.
