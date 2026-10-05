@@ -1,0 +1,32 @@
+# Configuración de Netlify
+
+[build]
+  publish = "."
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+
+# Evitar acceso a archivos privados desde la web
+[[headers]]
+  for = "/*.gs"
+  [headers.values]
+    X-Robots-Tag = "noindex"
+
+[[redirects]]
+  from = "/*.gs"
+  to = "/404"
+  status = 404
+
+[[redirects]]
+  from = "/*.xlsx"
+  to = "/404"
+  status = 404
+
+[[redirects]]
+  from = "/*.pdf"
+  to = "/404"
+  status = 404

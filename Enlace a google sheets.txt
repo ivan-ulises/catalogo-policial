@@ -1,0 +1,13 @@
+https://docs.google.com/spreadsheets/d/e/2PACX-1vTUxZeThjcRTBI6FXcUfUBU1RV5ZJwGN3pPMhK_ZyFIviNEICU-38NXCGfQNDCg3NFxCYOYP76r70V8/pub?gid=0&single=true&output=csv
+
+https://script.google.com/macros/s/AKfycbwm7BbTlefqtv-nyxd5TKdLiwMdB75W3SLWw_vw__QcuesfFitg0ZAH89Tj4AW6DETBJQ/exec
+
+
+https://docs.google.com/spreadsheets/d/1NkMfmizsLGUIlDzyJJQoo1cEhF1HGrxSQehlC-BS59Y/edit?gid=994360994#gid=994360994
+
+https://script.google.com/macros/s/AKfycbzwoSIlbbIsrverkeo5WDyCSgvrZkzv9nvDWL6Em6bWFoV4eP3gCnfg1uTCsX_gCiW--w/exec
+
+
+
+
+https://script.google.com/macros/s/AKfycbzwoSIlbbIsrverkeo5WDyCSgvrZkzv9nvDWL6Em6bWFoV4eP3gCnfg1uTCsX_gCiW--w/exec?data={"fecha":"test","municipio":"Nochixtlán","detalles_pedido":"Prueba","total":100,"total_str":"$100","num_partidas":1,"total_piezas":1}

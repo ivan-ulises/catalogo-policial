@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Catálogo B2B de Suministros A. R. Uniformes, botas, chalecos tácticos y fornituras sobre pedido con entrega en 21 días hábiles." />
+  <meta name="robots" content="noindex, nofollow" />
+  <meta http-equiv="X-Content-Type-Options" content="nosniff" />
+  <meta name="referrer" content="strict-origin-when-cross-origin" />
+  <title>Suministros A. R. — Catálogo B2B</title>
+
+  <!--
+  ╔══════════════════════════════════════════════════════════════╗
+  ║  index.html — Punto de entrada principal                    ║
+  ║  Responsabilidad: Estructura semántica + imports globales   ║
+  ║  ADMIN: Cambia el <title> y los meta tags de tu municipio   ║
+  ╚══════════════════════════════════════════════════════════════╝
+  -->
+
+  <!-- Tailwind CSS (CDN) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Google Fonts: Barlow Condensed (display) + Source Sans 3 (body) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=Source+Sans+3:wght@400;500;600&display=swap"
+    rel="stylesheet"
+  />
+
+  <!-- Estilos base del sistema -->
+  <link rel="stylesheet" href="assets/css/main.css" />
+
+  <!-- Tailwind config extendido con paleta corporativa -->
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            navy:  { DEFAULT: '#0A192F', light: '#112240', border: '#1E3A5F' },
+            gold:  { DEFAULT: '#FFD700', hover: '#FFC200', dark: '#A88E00' },
+            slate: { soft: '#8892B0',   light: '#CCD6F6'  },
+          },
+          fontFamily: {
+            display: ['Barlow Condensed', 'sans-serif'],
+            body:    ['Source Sans 3',    'sans-serif'],
+          },
+        },
+      },
+    };
+  </script>
+  <!-- html2pdf.js para generación de PDF en Frontend -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+  <script>
+    window.addEventListener('error', function(e) {
+      alert("Error JS: " + e.message + " en " + e.filename + ":" + e.lineno);
+    });
+    window.addEventListener('unhandledrejection', function(e) {
+      alert("Promesa rechazada: " + (e.reason && e.reason.message ? e.reason.message : e.reason));
+    });
+  </script>
+</head>
+
+<body class="bg-gray-50 font-body text-gray-800 antialiased">
+
+  <!-- ╔═══════════════════════════════════════════════════════╗
+       ║  HEADER — Barra de navegación fija                   ║
+       ╚═══════════════════════════════════════════════════════╝ -->
+  <header class="bg-navy sticky top-0 z-40 shadow-xl border-b border-gold/15">
+    <nav class="max-w-[1600px] mx-auto px-4 sm:px-10 py-4 lg:py-6 relative flex items-center justify-center min-h-[100px] lg:min-h-[120px]">
+      
+      <!-- Logo y Nombre CENTRADO ABSOLUTO -->
+      <div class="flex items-center gap-4 lg:gap-8 transition-all duration-500">
+        <div class="relative group">
+          <img src="Imagenes/logo_suministros_a_r.png"
+               alt="Logo Suministros A. R."
+               class="relative w-16 h-16 lg:w-24 lg:h-24 object-contain drop-shadow-lg" />
+        </div>
+
+        <div class="text-left">
+          <h1 class="font-display text-2xl lg:text-4xl font-bold text-white tracking-[0.05em] uppercase leading-none">
+            SUMINISTROS <span class="text-gold">A. R.</span>
+          </h1>
+          <div class="text-[10px] lg:text-sm text-slate-soft tracking-[0.4em] uppercase mt-2 font-bold opacity-80">
+            Distribuidora B2B
+          </div>
+        </div>
+      </div>
+
+      <!-- Botón del carrito (Fijado a la derecha sin afectar el centrado) -->
+      <div class="absolute right-4 sm:right-10 top-1/2 -translate-y-1/2">
+        <button
+          id="btn-toggle-cart"
+          class="relative flex items-center gap-3 bg-navy-light/40 backdrop-blur-md border border-gold/20 
+                 hover:border-gold/80 px-5 py-3 lg:px-8 lg:py-5 rounded-2xl transition-all group active:scale-90 shadow-xl"
+          aria-label="Abrir lista de pedido"
+        >
+          <svg class="w-7 h-7 lg:w-9 lg:h-9 text-slate-soft group-hover:text-gold transition-colors"
+               fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2
+                     M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+          </svg>
+          <span class="hidden xl:inline font-display text-base lg:text-xl font-black text-slate-soft group-hover:text-gold transition-colors tracking-widest">
+            MI PEDIDO
+          </span>
+          <span
+            id="cart-badge"
+            class="hidden absolute -top-3 -right-3 bg-gold text-navy text-xs lg:text-base font-black
+                   rounded-full min-w-[1.6rem] h-[1.6rem] lg:min-w-[2rem] lg:h-[2rem] flex items-center justify-center shadow-[0_0_15px_rgba(255,215,0,0.5)]"
+          >0</span>
+        </button>
+      </div>
+    </nav>
+  </header>
+
+  <!-- ╔═══════════════════════════════════════════════════════╗
+       ║  HERO BANNER                                          ║
+       ╚═══════════════════════════════════════════════════════╝ -->
+  <section class="bg-gradient-to-br from-navy via-navy-light to-navy-border py-16 sm:py-20 px-4">
+    <div class="max-w-4xl mx-auto text-center">
+      <p class="font-display text-gold text-sm tracking-[0.35em] uppercase mb-3
+                animate-pulse">
+        Proveedor Oficial · Suministros A. R.
+      </p>
+      <h1 class="font-display text-5xl sm:text-6xl font-bold text-white leading-tight tracking-wide mb-4">
+        EQUIPO &amp; UNIFORMES<br/>
+        <span class="text-gold">SEGURIDAD MUNICIPAL</span>
+      </h1>
+      <p class="text-slate-light text-base sm:text-lg max-w-2xl mx-auto leading-relaxed">
+        Catálogo interactivo sobre pedido. Sistema de maquila con entrega en
+        <strong class="text-gold">21 días hábiles</strong> tras confirmación y anticipo.
+      </p>
+    </div>
+  </section>
+
+  <!-- ╔═══════════════════════════════════════════════════════╗
+       ║  FILTROS DE CATEGORÍA — catalog.js los inyecta       ║
+       ╚═══════════════════════════════════════════════════════╝ -->
+  <section class="bg-white border-b border-gray-200 sticky top-[64px] z-30">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex flex-col sm:flex-row gap-3 items-center justify-between">
+      <div id="filter-bar" class="flex gap-2 overflow-x-auto pb-1 flex-1 w-full sm:w-auto">
+        <!-- Generado dinámicamente por catalog.js -->
+      </div>
+      <div class="w-full sm:w-72 relative shrink-0">
+        <input type="text" id="search-input" placeholder="Buscar por SKU o palabra..."
+               class="w-full bg-gray-50 border border-gray-300 text-sm rounded-full pl-10 pr-4 py-2 focus:outline-none focus:ring-2 focus:ring-navy focus:border-transparent transition-all font-body text-gray-700 placeholder-gray-400">
+        <svg class="w-4 h-4 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+        </svg>
+      </div>
+    </div>
+  </section>
+
+  <!-- ╔═══════════════════════════════════════════════════════╗
+       ║  MAIN — Catálogo de productos                        ║
+       ║  catalog.js inyecta las tarjetas aquí                ║
+       ╚═══════════════════════════════════════════════════════╝ -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 py-10">
+
+    <!-- Estado de carga inicial (spinner) -->
+    <div id="catalog-loading" class="flex flex-col items-center justify-center py-24">
+      <div class="w-12 h-12 border-4 border-navy/20 border-t-gold rounded-full animate-spin mb-4"></div>
+      <p class="font-display text-lg text-navy tracking-wide">Cargando catálogo Suministros A. R.…</p>
+    </div>
+
+    <!-- Estado de error — googleSheets.js lo activa si el fetch falla -->
+    <div id="catalog-error" class="hidden">
+      <!-- Contenido inyectado por catalog.js renderError() -->
+    </div>
+
+    <!-- Grid de productos — catalog.js renderiza aquí -->
+    <div id="products-header" class="hidden items-baseline justify-between mb-6">
+      <h2 class="font-display text-3xl font-bold text-navy tracking-wide">
+        CATÁLOGO DE <span class="text-gold-dark">PRODUCTOS</span>
+      </h2>
+      <span id="products-count" class="text-sm text-gray-500 font-medium"></span>
+    </div>
+    <div
+      id="products-grid"
+      class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5"
+    >
+      <!-- Tarjetas inyectadas por catalog.js -->
+    </div>
+  </main>
+
+  <!-- ╔═══════════════════════════════════════════════════════╗
+       ║  PANEL DEL CARRITO (sidebar) — cart.js lo controla   ║
+       ╚═══════════════════════════════════════════════════════╝ -->
+  <div id="cart-overlay"
+       class="fixed inset-0 bg-black/50 z-40 hidden opacity-0 transition-opacity duration-300">
+  </div>
+
+  <aside
+    id="cart-panel"
+    class="fixed top-0 right-0 h-full w-full sm:w-[420px] bg-white z-50 shadow-2xl
+           overflow-y-auto translate-x-full transition-transform duration-300 ease-in-out"
+    aria-label="Panel de pedido"
+  >
+    <!-- cart.js inyecta todo el contenido interior -->
+  </aside>
+
+  <!-- ╔═══════════════════════════════════════════════════════════════╗
+       ║  MODAL DE COTIZACIÓN (CLIENTE) — orders.js lo controla       ║
+       ║                                                               ║
+       ║  Solo contiene la Tabla A (cotización con precios).           ║
+       ║  La Tabla B (proveedor, sin precios) NUNCA se inyecta aquí.   ║
+       ║  El modal #admin-modal se crea dinámicamente por orders.js    ║
+       ║  SOLO después de autenticación con contraseña.                ║
+       ╚═══════════════════════════════════════════════════════════════╝ -->
+  <div
+    id="sheets-modal"
+    class="hidden fixed inset-0 bg-black/60 z-[60] overflow-y-auto py-8 px-3"
+    aria-modal="true"
+    role="dialog"
+    aria-label="Cotización de pedido"
+  >
+    <!-- orders.js._openClientModal() inyecta aquí solo la Tabla A.
+         Al cerrar el modal, innerHTML se destruye completamente. -->
+  </div>
+
+  <!--
+    NOTA DE SEGURIDAD — NO agregar ningún elemento con id="admin-modal" aquí.
+    El modal del administrador (#admin-modal) es creado y destruido
+    dinámicamente por orders.js._openAdminModal() únicamente tras
+    autenticación exitosa. Agregarlo en el HTML lo expondría al DOM público.
+
+    TRIGGERS DE ACCESO ADMIN (implementados en orders.js):
+      • Triple-clic en el título "COTIZACIÓN GENERADA" del modal cliente
+      • Ctrl + Shift + P  (atajo de teclado global)
+    Ambos solicitan contraseña vía prompt() antes de mostrar nada.
+  -->
+
+  <!-- ╔═══════════════════════════════════════════════════════╗
+       ║  TOAST de notificaciones — util compartido           ║
+       ╚═══════════════════════════════════════════════════════╝ -->
+  <div
+    id="toast"
+    role="status"
+    aria-live="polite"
+    class="fixed bottom-24 right-6 z-[70] bg-navy text-gold font-display tracking-wide
+           px-5 py-3 rounded-xl shadow-2xl text-sm opacity-0 transition-opacity duration-300
+           pointer-events-none"
+  ></div>
+
+  <!-- Botón flotante WhatsApp — whatsapp.js lo enlaza -->
+  <a
+    id="wa-float"
+    href="#"
+    target="_blank"
+    rel="noopener noreferrer"
+    class="fixed bottom-6 right-6 z-50 flex items-center gap-2 bg-[#25D366] hover:bg-[#1da851]
+           text-white font-display font-bold px-4 py-3 rounded-full shadow-2xl text-sm
+           transition-all duration-200 hover:scale-105"
+    aria-label="Contactar por WhatsApp"
+  >
+    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15
+               -.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463
+               -2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606
+               .134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371
+               -.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51
+               -.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016
+               -1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487
+               .709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719
+               2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
+      <path d="M12 0C5.373 0 0 5.373 0 12c0 2.126.556 4.122 1.528 5.854L.057 23.057a.75.75
+               0 00.921.921l5.204-1.471A11.95 11.95 0 0012 24c6.627 0 12-5.373 12-12S18.627
+               0 12 0zm0 21.75a9.71 9.71 0 01-4.964-1.36l-.357-.212-3.688 1.043 1.044-3.688
+               -.213-.357A9.712 9.712 0 012.25 12C2.25 6.615 6.615 2.25 12 2.25S21.75 6.615
+               21.75 12 17.385 21.75 12 21.75z"/>
+    </svg>
+    <span class="hidden sm:inline">Consultar pedido</span>
+  </a>
+
+  <!-- ╔═══════════════════════════════════════════════════════╗
+       ║  MÓDULO PRINCIPAL — type="module" habilita ES6       ║
+       ║  Importa y orquesta todos los submódulos             ║
+       ╚═══════════════════════════════════════════════════════╝ -->
+  <script type="module" src="main.js"></script>
+</body>
+</html>

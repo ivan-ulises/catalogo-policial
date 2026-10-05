@@ -1,0 +1,367 @@
+/*
+ * assets/css/main.css
+ * Estilos base, animaciones premium y efectos visuales avanzados.
+ * ADMIN: Ajusta variables CSS para cambiar la paleta global.
+ */
+
+/* ── Variables CSS del sistema ───────────────────────────── */
+:root {
+  --navy:       #0A192F;
+  --navy-light: #112240;
+  --navy-border:#1E3A5F;
+  --gold:       #FFD700;
+  --gold-hover: #FFC200;
+  --gold-dark:  #A88E00;
+  --slate-soft: #8892B0;
+  --slate-light:#CCD6F6;
+
+  /* Glassmorphism tokens */
+  --glass-bg:    rgba(255, 255, 255, 0.82);
+  --glass-blur:  20px;
+  --glass-border:rgba(255, 255, 255, 0.25);
+
+  /* Sombras premium */
+  --shadow-card:  0 4px 20px rgba(10, 25, 47, 0.08);
+  --shadow-hover: 0 20px 50px rgba(10, 25, 47, 0.18);
+  --shadow-modal: 0 32px 64px rgba(0, 0, 0, 0.32);
+}
+
+/* ── Reset tipográfico ───────────────────────────────────── */
+body {
+  font-family: 'Source Sans 3', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+h1, h2, h3, h4,
+.font-display,
+[class*="font-display"] {
+  font-family: 'Barlow Condensed', sans-serif;
+  letter-spacing: 0.02em;
+}
+
+/* ── Placeholder de imagen con patrón diagonal ───────────── */
+.img-placeholder {
+  background: repeating-linear-gradient(
+    45deg,
+    var(--navy-border),
+    var(--navy-border) 10px,
+    var(--navy-light)  10px,
+    var(--navy-light)  20px
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
+   TARJETAS DE PRODUCTO — Micro-animaciones Premium
+   ═══════════════════════════════════════════════════════════ */
+.product-card {
+  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+              box-shadow 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+  box-shadow: var(--shadow-card);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Línea dorada superior que aparece en hover */
+.product-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--gold), var(--gold-hover), var(--gold));
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  z-index: 10;
+}
+.product-card:hover::before {
+  transform: scaleX(1);
+}
+
+.product-card:hover {
+  transform: translateY(-6px);
+  box-shadow: var(--shadow-hover);
+}
+
+/* ── Animación de entrada escalonada (mejorada) ──────────── */
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(28px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+.fade-up {
+  animation: fadeUp 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* ── Efecto shimmer para imágenes mientras cargan ────────── */
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.product-card img[loading="lazy"] {
+  background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+/* ── Galería Deslizable (Scroll Snap) ───────────── */
+.product-slider {
+  display: flex;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+}
+.product-slider::-webkit-scrollbar {
+  display: none; /* Chrome/Safari */
+}
+
+.slider-item {
+  flex: 0 0 100%;
+  width: 100%;
+  height: 100%;
+  scroll-snap-align: center;
+  position: relative;
+}
+
+/* Indicadores (Dots) */
+.slider-dots {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 6px;
+  z-index: 5;
+  pointer-events: none;
+}
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.4);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+  transition: all 0.3s ease;
+}
+/* Estilo para el dot "activo" usando scroll-timeline (experimental) o fallback visual */
+.product-slider:not(:empty) + .slider-nav + .slider-nav + .slider-dots .dot:first-child {
+  background: #FFD700;
+  transform: scale(1.2);
+}
+
+/* ── Botones de Navegación del Slider ───────────── */
+.slider-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(10, 25, 47, 0.4);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  cursor: pointer;
+  z-index: 10;
+  opacity: 0;
+  transition: all 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.product-card:hover .slider-nav {
+  opacity: 1;
+}
+
+.slider-nav:hover {
+  background: var(--navy);
+  color: var(--gold);
+  border-color: var(--gold);
+  transform: translateY(-50%) scale(1.1);
+}
+
+.slider-nav.prev { left: 8px; }
+.slider-nav.next { right: 8px; }
+
+.slider-nav svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* Ocultar flechas en dispositivos táctiles si se desea */
+@media (hover: none) {
+  .slider-nav { display: none; }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   BOTONES — Feedback táctil premium
+   ═══════════════════════════════════════════════════════════ */
+.btn-add-product {
+  position: relative;
+  overflow: hidden;
+  transition: all 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Onda dorada al hacer clic */
+.btn-add-product::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at var(--ripple-x, 50%) var(--ripple-y, 50%),
+              rgba(255, 255, 255, 0.35) 0%, transparent 70%);
+  opacity: 0;
+  transition: opacity 0.5s;
+}
+.btn-add-product:active::after {
+  opacity: 1;
+  transition: opacity 0s;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   GLASSMORPHISM — Modales y overlays
+   ═══════════════════════════════════════════════════════════ */
+
+/* Overlay con desenfoque */
+#sheets-modal,
+#cart-overlay {
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 60; /* Superior a WhatsApp (50) */
+}
+
+#cart-panel {
+  z-index: 70; /* Superior a todo */
+}
+
+/* Estado de confirmación para el botón de vaciar */
+.btn-danger-confirm {
+  background-color: #fee2e2 !important;
+  color: #dc2626 !important;
+  border-color: #fecaca !important;
+  font-weight: 800 !important;
+}
+
+/* Panel del modal del checkout con glassmorfismo sutil */
+#sheets-modal > div {
+  box-shadow: var(--shadow-modal);
+}
+
+/* Efecto de cristal en el admin-modal */
+#admin-modal {
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   FILTROS — Categorías con transiciones suaves
+   ═══════════════════════════════════════════════════════════ */
+.filter-btn {
+  transition: all 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+  position: relative;
+}
+.filter-btn:active {
+  transform: scale(0.95);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   TABLAS DE COTIZACIÓN
+   ═══════════════════════════════════════════════════════════ */
+.sheet-table th {
+  background: var(--navy);
+  color: var(--gold);
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 0.85rem;
+  letter-spacing: 0.06em;
+  padding: 10px 14px;
+  text-align: left;
+}
+.sheet-table td {
+  padding: 9px 14px;
+  font-size: 0.875rem;
+  border-bottom: 1px solid #e5e7eb;
+  transition: background 0.15s ease;
+}
+.sheet-table tbody tr:hover td {
+  background: #eef2ff;
+}
+.sheet-table tr:nth-child(even) td {
+  background: #f8fafc;
+}
+.sheet-table tr:nth-child(even):hover td {
+  background: #eef2ff;
+}
+.sheet-table tfoot td {
+  background: #f0f4fa;
+  font-weight: 700;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   TOAST — Animación de entrada/salida mejorada
+   ═══════════════════════════════════════════════════════════ */
+#toast {
+  transition: opacity 0.3s ease, transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+  transform: translateY(10px);
+}
+#toast.opacity-100 {
+  transform: translateY(0);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   HEADER — Efecto cristal en scroll
+   ═══════════════════════════════════════════════════════════ */
+header.bg-navy {
+  transition: box-shadow 0.3s ease;
+  border-bottom: 1px solid rgba(30, 58, 95, 0.4);
+}
+
+/* ─── Scrollbar fino para el panel del carrito ────────── */
+#cart-panel::-webkit-scrollbar { width: 4px; }
+#cart-panel::-webkit-scrollbar-track { background: transparent; }
+#cart-panel::-webkit-scrollbar-thumb { background: var(--navy-border); border-radius: 2px; }
+
+/* ─── Ocultar scrollbar del filter-bar en móvil ──────── */
+#filter-bar::-webkit-scrollbar { display: none; }
+#filter-bar { scrollbar-width: none; }
+
+/* ═══════════════════════════════════════════════════════════
+   BOTÓN FLOTANTE WhatsApp — Pulso vital
+   ═══════════════════════════════════════════════════════════ */
+@keyframes waPulse {
+  0%, 100% { box-shadow: 0 4px 14px rgba(37, 211, 102, 0.4); }
+  50%      { box-shadow: 0 4px 28px rgba(37, 211, 102, 0.65); }
+}
+#wa-float {
+  animation: waPulse 2.5s ease-in-out infinite;
+}
+#wa-float:hover {
+  animation: none;
+  box-shadow: 0 6px 24px rgba(37, 211, 102, 0.5);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   ESTILOS DE IMPRESIÓN
+   ═══════════════════════════════════════════════════════════ */
+@media print {
+  body { background: #fff !important; }
+  header, #filter-bar, #wa-float,
+  #cart-panel, #cart-overlay,
+  #toast, #btn-toggle-cart,
+  section.bg-gradient-to-br,
+  #sheets-modal > div > div:last-child { /* oculta botones del modal */
+    display: none !important;
+  }
+  .sheet-table { width: 100%; border-collapse: collapse; }
+  .sheet-table th, .sheet-table td { border: 1px solid #ccc !important; }
+  .page-break { page-break-before: always; }
+  .product-card { box-shadow: none !important; }
+  .product-card::before { display: none; }
+}
