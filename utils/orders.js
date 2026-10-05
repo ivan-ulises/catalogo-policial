@@ -472,13 +472,7 @@ async function _handleSubmitOrder(items, total, dateStr) {
       // Configurar html2pdf usando el string HTML perfecto
       const htmlStr = _generateInvoiceHTML(items, total, dateStr, municipio);
       
-      const container = document.createElement('div');
-      container.style.position = 'absolute';
-      container.style.top = '-9999px';
-      container.style.left = '0';
-      container.style.width = '800px';
-      container.innerHTML = htmlStr;
-      document.body.appendChild(container);
+      
 
       const opt = {
         margin:       0.3,
@@ -489,8 +483,7 @@ async function _handleSubmitOrder(items, total, dateStr) {
       };
 
       // Generar base64
-      const pdfBase64 = await html2pdf().from(container).set(opt).outputPdf('datauristring');
-      document.body.removeChild(container);
+      const pdfBase64 = await html2pdf().from(htmlStr).set(opt).outputPdf('datauristring');
 
     
     if (feedback) feedback.textContent = 'Enviando orden y correo...';
@@ -1041,12 +1034,12 @@ function _generateInvoiceHTML(items, total, dateStr, municipioVal) {
       </tr>`;
   }).join('');
 
-  return `<div>
+  return `<div id="invoice-wrapper" style="width: 800px; padding: 20px; background: #fff; font-family: 'Source Sans 3', sans-serif; font-size: 10.5px; color: #1a1a2e;">
   <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,400;0,600;0,700;0,800;1,400&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet"/>
   <style>
 /* ===== RESET ===== */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: 'Source Sans 3', sans-serif; font-size: 10.5px; color: #1a1a2e; background: #fff; }
+
 @page { size: Letter portrait; margin: 16mm 14mm 14mm 14mm; }
 .main-header { background: linear-gradient(135deg, #0A192F 0%, #112240 65%, #1E3A5F 100%); border-radius: 8px; padding: 14px 20px; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; }
 .mh-left  { display: flex; align-items: center; gap: 12px; }
