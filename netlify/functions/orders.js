@@ -35,7 +35,7 @@ exports.handler = async (event, context) => {
     const detalles_pedido = payload.items.map(i => `${i.qty}x ${i.name}`).join(' | ');
     const num_partidas = payload.items.length;
     const total_piezas = payload.items.reduce((acc, i) => acc + i.qty, 0);
-    const folioStr = Date.now().toString(36).toUpperCase();
+    const folioStr = String(payload.folio || ('COT-' + Date.now().toString(36).toUpperCase())).slice(0, 40);
 
     const orderRow = {
       folio: folioStr,

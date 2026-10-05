@@ -460,7 +460,7 @@ async function _handleSubmitOrder(items, total, dateStr) {
     </svg>
   `;
   if (feedback) {
-    feedback.textContent = 'Conectando con Google Sheets…';
+    feedback.textContent = 'Preparando pedido…';
     feedback.className = 'text-xs text-center mt-2 min-h-[1.2rem] text-[#8892B0]';
   }
 
@@ -469,26 +469,15 @@ async function _handleSubmitOrder(items, total, dateStr) {
     if (feedback) feedback.textContent = 'Generando PDF...';
     
     
-      // Configurar html2pdf usando el string HTML perfecto
-      const htmlStr = _generateInvoiceHTML(items, total, dateStr, municipio);
-      
-      
+    // Folio único: el mismo número aparece en el PDF, el correo y la base de datos
+    const folio = 'COT-' + Date.now().toString(36).toUpperCase();
 
-      const opt = {
-        margin:       0.3,
-        filename:     `Pedido_${municipio.replace(/[^a-zA-Z0-9]/g, '')}.pdf`,
-        image:        { type: 'jpeg', quality: 0.98 },
-        html2canvas:  { scale: 2, useCORS: true, windowWidth: 800 },
-        jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
-      };
+    // PDF vectorial (texto real, sin capturas de pantalla)
+    const pdfBase64 = _buildInvoicePDF(items, dateStr, municipio, folio);
 
-      // Generar base64
-      const pdfBase64 = await html2pdf().from(htmlStr).set(opt).outputPdf('datauristring');
-
-    
     if (feedback) feedback.textContent = 'Enviando orden y correo...';
 
-    const payload = { items, total, municipio, dateStr };
+    const payload = { items, total, municipio, dateStr, folio };
     
     const response = await fetch('/.netlify/functions/orders', {
       method: 'POST',
@@ -496,12 +485,16 @@ async function _handleSubmitOrder(items, total, dateStr) {
       body: JSON.stringify({ payload, pdfBase64 })
     });
 
-    if (!response.ok) throw new Error('Fallo al guardar');
+    if (!response.ok) {
+      const errBody = await response.json().catch(() => ({}));
+      throw new Error(errBody.error || 'Fallo al guardar');
+    }
     const resultData = await response.json();
     
     var result = { ok: true, mode: 'cors' }; // mock para no cambiar el flujo de abajo
   } catch (err) {
-    var result = { ok: false, message: 'Error de conexión. Intenta de nuevo.' };
+    console.error('[orders] Error al enviar pedido:', err);
+    var result = { ok: false, message: 'No se pudo enviar el pedido: ' + (err.message || 'error de conexión') + '. Intenta de nuevo.' };
   }
 
   // ── Estado: SUCCESS ──────────────────────────────────────────
@@ -513,14 +506,14 @@ async function _handleSubmitOrder(items, total, dateStr) {
 
     if (feedback) {
       const modeNote = result.mode === 'no-cors'
-        ? ' (sin confirmación de GAS — revisa tu Sheet)'
+        ? ' (sin confirmación del servidor)'
         : '';
       feedback.textContent = `Registrado correctamente${modeNote}`;
       feedback.className = 'text-xs text-center mt-2 min-h-[1.2rem] text-green-400';
     }
 
     document.dispatchEvent(new CustomEvent('ui:toast', {
-      detail: { msg: '✓ Pedido guardado en Google Sheets' },
+      detail: { msg: '✓ Pedido enviado correctamente' },
     }));
 
     // Pausa breve para que el usuario vea el estado success, luego abre WA
@@ -1006,6 +999,204 @@ function _fmtPDF(n) {
   return new Intl.NumberFormat('es-MX', {
     style: 'currency', currency: 'MXN', minimumFractionDigits: 2,
   }).format(n || 0);
+}
+
+/**
+ * Genera la cotización como PDF VECTORIAL (texto real, seleccionable, sin
+ * capturas de pantalla) usando jsPDF + AutoTable. Tamaño Carta, multipágina.
+ *
+ * @param {Array}  items      Ítems del carrito.
+ * @param {string} dateStr    Fecha formateada.
+ * @param {string} municipio  Municipio / agencia solicitante.
+ * @param {string} folio      Folio de la cotización.
+ * @returns {string} Data URI base64 del PDF.
+ * @private
+ */
+function _buildInvoicePDF(items, dateStr, municipio, folio) {
+  const jsPDFCtor = window.jspdf && window.jspdf.jsPDF;
+  if (!jsPDFCtor) throw new Error('jsPDF no está cargado');
+
+  const doc = new jsPDFCtor({ unit: 'pt', format: 'letter', orientation: 'portrait' });
+  const PW = doc.internal.pageSize.getWidth();   // 612
+  const PH = doc.internal.pageSize.getHeight();  // 792
+  const M  = 36;                                 // margen lateral
+  const CW = PW - M * 2;                         // ancho útil (540)
+
+  const NAVY = [10, 25, 47], NAVY2 = [30, 58, 95], GOLD = [255, 215, 0];
+  const GRAY = [100, 116, 139], LIGHT = [248, 250, 252], LINE = [203, 213, 225];
+
+  // Moneda sin caracteres especiales (compatible con la fuente base del PDF)
+  const money = (n) => '$' + (Number(n) || 0).toLocaleString('en-US', {
+    minimumFractionDigits: 2, maximumFractionDigits: 2,
+  });
+
+  const totalGral      = items.reduce((s, i) => s + i.qty * i.unitPrice, 0);
+  const subtotalSinIva = totalGral / 1.16;
+  const ivaTotal       = totalGral - subtotalSinIva;
+  const totalPiezas    = items.reduce((s, i) => s + i.qty, 0);
+
+  // ── Encabezado ────────────────────────────────────────────────
+  doc.setFillColor(...NAVY);
+  doc.roundedRect(M, 36, CW, 62, 6, 6, 'F');
+  doc.setTextColor(...GOLD);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(21);
+  doc.text(COMPANY_NAME, M + 16, 64);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.setTextColor(136, 146, 176);
+  doc.text('ESPECIALISTAS EN EQUIPAMIENTO POLICIAL Y SEGURIDAD', M + 16, 80);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(12);
+  doc.setTextColor(...GOLD);
+  doc.text(folio, PW - M - 16, 62, { align: 'right' });
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(136, 146, 176);
+  doc.text(String(dateStr || ''), PW - M - 16, 78, { align: 'right' });
+
+  // ── Título + Municipio ────────────────────────────────────────
+  doc.setTextColor(...NAVY);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(13);
+  doc.text('COTIZACIÓN', M, 124);
+
+  doc.setFillColor(247, 249, 253);
+  doc.setDrawColor(...NAVY2);
+  doc.setLineWidth(1);
+  doc.roundedRect(M, 134, CW, 34, 5, 5, 'FD');
+  doc.setFontSize(7.5);
+  doc.setTextColor(...GRAY);
+  doc.text('MUNICIPIO / AGENCIA SOLICITANTE', M + 14, 148);
+  doc.setFontSize(11);
+  doc.setTextColor(...NAVY);
+  const muniLine = doc.splitTextToSize(municipio || 'Cliente General', CW - 28)[0];
+  doc.text(muniLine, M + 14, 161);
+
+  // ── Tabla de productos ────────────────────────────────────────
+  const rows = items.map(item => {
+    const unitBase = item.unitPrice / 1.16;
+    return [
+      '', // se dibuja a mano (nombre + detalle + SKU)
+      item.color || '-',
+      item.size || '-',
+      String(item.qty),
+      money(unitBase),
+      money(item.unitPrice - unitBase),
+      money(item.qty * item.unitPrice),
+    ];
+  });
+
+  const colProdW = 190;
+  doc.autoTable({
+    startY: 182,
+    margin: { left: M, right: M, top: 40, bottom: 60 },
+    rowPageBreak: 'avoid',
+    showHead: 'everyPage',
+    head: [['PRODUCTO / SKU', 'COLOR', 'TALLA', 'CANT.', 'PRECIO U.', 'IVA 16%', 'SUBTOTAL']],
+    body: rows,
+    theme: 'plain',
+    styles: { font: 'helvetica', fontSize: 8.5, textColor: NAVY, cellPadding: { top: 6, bottom: 6, left: 6, right: 6 }, valign: 'middle', lineColor: LINE, lineWidth: 0 },
+    headStyles: { fillColor: NAVY2, textColor: GOLD, fontStyle: 'bold', fontSize: 8, halign: 'center', valign: 'middle', cellPadding: 7 },
+    columnStyles: {
+      0: { cellWidth: colProdW, halign: 'left' },
+      1: { cellWidth: 55, halign: 'center' },
+      2: { cellWidth: 50, halign: 'center' },
+      3: { cellWidth: 40, halign: 'center', fontStyle: 'bold' },
+      4: { cellWidth: 70, halign: 'right' },
+      5: { cellWidth: 65, halign: 'right' },
+      6: { cellWidth: 70, halign: 'right', fontStyle: 'bold' },
+    },
+    alternateRowStyles: { fillColor: LIGHT },
+    didParseCell: (data) => {
+      if (data.section === 'head' && data.column.index === 0) data.cell.styles.halign = 'left';
+      if (data.section === 'head' && data.column.index >= 4) data.cell.styles.halign = 'right';
+      if (data.section === 'body' && data.column.index === 0) {
+        // Calcula la altura necesaria para nombre (multilínea) + detalle + SKU
+        const it = items[data.row.index];
+        const detail = [it.variant, it.slotInfo].filter(Boolean).join(' - ');
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(9);
+        const nameLines = doc.splitTextToSize(String(it.name || ''), colProdW - 12);
+        data.cell.raw = { nameLines, detail, sku: it.sku || '' };
+        data.cell.styles.minCellHeight = 12 + nameLines.length * 11 + (detail ? 10 : 0) + 10;
+      }
+    },
+    didDrawCell: (data) => {
+      if (data.section === 'body') {
+        // Línea divisoria inferior de cada fila
+        doc.setDrawColor(...LINE); doc.setLineWidth(0.5);
+        doc.line(data.cell.x, data.cell.y + data.cell.height, data.cell.x + data.cell.width, data.cell.y + data.cell.height);
+      }
+      if (data.section === 'body' && data.column.index === 0 && data.cell.raw && data.cell.raw.nameLines) {
+        const { nameLines, detail, sku } = data.cell.raw;
+        let y = data.cell.y + 14;
+        const x = data.cell.x + 6;
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(...NAVY);
+        nameLines.forEach(l => { doc.text(l, x, y); y += 11; });
+        if (detail) {
+          doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(...GRAY);
+          doc.text(doc.splitTextToSize(detail, colProdW - 12)[0], x, y - 1); y += 10;
+        }
+        doc.setFont('courier', 'normal'); doc.setFontSize(7); doc.setTextColor(148, 163, 184);
+        doc.text(String(sku), x, y - 1);
+      }
+    },
+  });
+
+  // ── Totales ───────────────────────────────────────────────────
+  let y = doc.lastAutoTable.finalY + 14;
+  if (y + 100 > PH - 60) { doc.addPage(); y = 50; }
+
+  const bx = PW - M - 230, bw = 230;
+  doc.setDrawColor(...LINE); doc.setLineWidth(0.8);
+  doc.setFillColor(...LIGHT);
+  doc.roundedRect(bx, y, bw, 52, 4, 4, 'FD');
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(71, 85, 105);
+  doc.text('Subtotal s/IVA', bx + 12, y + 18);
+  doc.text(money(subtotalSinIva), bx + bw - 12, y + 18, { align: 'right' });
+  doc.text('IVA (16%)', bx + 12, y + 38);
+  doc.text(money(ivaTotal), bx + bw - 12, y + 38, { align: 'right' });
+
+  doc.setFillColor(...NAVY);
+  doc.roundedRect(bx, y + 58, bw, 30, 4, 4, 'F');
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(...GOLD);
+  doc.text('TOTAL C/IVA', bx + 12, y + 77);
+  doc.setFontSize(13);
+  doc.text(money(totalGral), bx + bw - 12, y + 78, { align: 'right' });
+
+  // Resumen a la izquierda de los totales
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...GRAY);
+  doc.text(`Partidas: ${items.length}`, M, y + 18);
+  doc.text(`Total de piezas: ${totalPiezas}`, M, y + 32);
+
+  // ── Condiciones ───────────────────────────────────────────────
+  let cy = y + 108;
+  if (cy + 50 > PH - 60) { doc.addPage(); cy = 50; }
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(...NAVY);
+  doc.text('CONDICIONES', M, cy);
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...GRAY);
+  const cond = [
+    'Entrega en 21 días hábiles a partir de la confirmación del pedido y anticipo correspondiente.',
+    TABLA_A_FOOTER,
+    'Precios en MXN, IVA incluido en el total.',
+  ];
+  cond.forEach((t, i) => {
+    doc.text(doc.splitTextToSize('- ' + t, CW)[0], M, cy + 14 + i * 12);
+  });
+
+  // ── Pie de página en todas las páginas ────────────────────────
+  const pages = doc.getNumberOfPages();
+  for (let p = 1; p <= pages; p++) {
+    doc.setPage(p);
+    doc.setDrawColor(...LINE); doc.setLineWidth(0.5);
+    doc.line(M, PH - 42, PW - M, PH - 42);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(148, 163, 184);
+    doc.text(`${COMPANY_NAME} · ${folio}`, M, PH - 28);
+    doc.text(`Página ${p} de ${pages}`, PW - M, PH - 28, { align: 'right' });
+  }
+
+  return doc.output('datauristring');
 }
 
 function _generateInvoiceHTML(items, total, dateStr, municipioVal) {
