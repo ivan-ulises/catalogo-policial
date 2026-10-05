@@ -40,7 +40,6 @@
 // ─── Importaciones de módulos ──────────────────────────────────
 
 import { fetchProducts } from './api/supabaseClient.js';
-import { getDemoProducts } from './api/googleSheets.js'; // fallback si falla o usan demo
 import { initCatalog, renderError } from './components/catalog.js';
 import { initCart, getCartItems, getCartTotal } from './components/cart.js';
 import { initOrders } from './utils/orders.js';
@@ -63,7 +62,6 @@ import { initWhatsApp, sendOrderViaWhatsApp } from './utils/whatsapp.js';
  *
  * @type {string}
  */
-const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTUxZeThjcRTBI6FXcUfUBU1RV5ZJwGN3pPMhK_ZyFIviNEICU-38NXCGfQNDCg3NFxCYOYP76r70V8/pub?gid=0&single=true&output=csv'; // ← PEGA AQUÍ TU URL CSV DEL GOOGLE SHEET
 
 // ─── Inicialización ────────────────────────────────────────────
 
@@ -128,10 +126,7 @@ function _registerGlobalEvents() {
   });
 
   // ── Carga del catálogo de demo (desde el botón de error) ─────
-  document.addEventListener('catalog:loadDemo', () => {
-    initCatalog(getDemoProducts());
-    _showToast('📦 Catálogo de demostración cargado');
-  });
+  
 
   // ── Botón flotante de WA cuando hay ítems en el carrito ──────
   // whatsapp.js dispara 'wa:floatClick'; main.js provee los datos
