@@ -162,6 +162,11 @@ function _openClientModal() {
           </div>
         </div>
 
+        <!-- Campo Honeypot oculto para protección anti-spam/bots -->
+        <div style="position: absolute; left: -9999px; top: -9999px; opacity: 0; pointer-events: none;" aria-hidden="true">
+          <input id="input-website-hp" type="text" name="b_website_corp" tabindex="-1" value="" autocomplete="off" />
+        </div>
+
         <!-- ════════════════════════════════════════════════════
              TABLA A — COTIZACIÓN (solo con precios)
              ════════════════════════════════════════════════════ -->
@@ -466,23 +471,37 @@ async function _handleSubmitOrder(items, total, dateStr) {
 
   // ── Generar PDF y Enviar a Netlify ───────────────────────────────
   try {
-    if (feedback) feedback.textContent = 'Generando PDF...';
-    
-    
-    // Folio único: el mismo número aparece en el PDF, el correo y la base de datos
-    const folio = 'COT-' + Date.now().toString(36).toUpperCase();
+    // Generar idempotency_key único por sesión de cotización para evitar duplicados en reintentos
+    if (!_currentOrder || !_currentOrder.idempotencyKey) {
+      if (!_currentOrder) _currentOrder = {};
+      _currentOrder.idempotencyKey = 'IDEM-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
+    }
+    const idempotencyKey = _currentOrder.idempotencyKey;
 
-    // PDF vectorial (texto real, sin capturas de pantalla)
-    const pdfBase64 = _buildInvoicePDF(items, dateStr, municipio, folio);
+    // Folio preliminar para el cliente
+    const clientFolio = 'COT-' + new Date().getFullYear() + '-' + Date.now().toString(36).slice(-4).toUpperCase();
+
+    // PDF vectorial preliminar
+    const pdfBase64 = _buildInvoicePDF(items, dateStr, municipio, clientFolio);
 
     if (feedback) feedback.textContent = 'Enviando orden y correo...';
 
-    const payload = { items, total, municipio, dateStr, folio };
+    // Honeypot para protección contra spam automatizado
+    const honeypotVal = document.getElementById('input-website-hp')?.value || '';
+
+    const payload = {
+      items,
+      total,
+      municipio,
+      dateStr,
+      folio: clientFolio,
+      idempotency_key: idempotencyKey
+    };
     
     const response = await fetch('/.netlify/functions/orders', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ payload, pdfBase64 })
+      body: JSON.stringify({ payload, pdfBase64, honeypot: honeypotVal })
     });
 
     if (!response.ok) {
@@ -490,8 +509,9 @@ async function _handleSubmitOrder(items, total, dateStr) {
       throw new Error(errBody.error || 'Fallo al guardar');
     }
     const resultData = await response.json();
+    const finalFolio = resultData.folio || clientFolio;
     
-    var result = { ok: true, mode: 'cors' }; // mock para no cambiar el flujo de abajo
+    var result = { ok: true, mode: 'cors', folio: finalFolio };
   } catch (err) {
     console.error('[orders] Error al enviar pedido:', err);
     var result = { ok: false, message: 'No se pudo enviar el pedido: ' + (err.message || 'error de conexión') + '. Intenta de nuevo.' };

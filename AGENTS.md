@@ -1,31 +1,51 @@
-# Mapa Maestro - Suministros A. R. (Catálogo B2B)
+# Mapa Maestro — Suministros A. R. (Catálogo B2B en Producción)
 
-## Resumen del Proyecto
-Sistema B2B tipo catálogo interactivo para ventas de uniformes y equipamiento policial municipal. No cuenta con pasarela de pagos tradicional; el carrito (lista de pedido) genera una requisición formal que el usuario manda a producción vía WhatsApp o un modal formal que conecta a Google Sheets/Email usando Google Apps Script.
+## Contexto y Misión
+Plataforma web institucional B2B para **Suministros A. R.** especializada en equipamiento policial y táctico municipal.
+**Modelo B2B Requisición/Cotizador:** No es un e-commerce; no procesa pagos con tarjeta.
+El comprador municipal arma su selección -> genera requisición con folio único (`COT-XXXX`) -> genera PDF vectorial Carta (`jsPDF` + `AutoTable`) -> persiste en PostgreSQL (`orders` vía Supabase) -> despacha correo formal con PDF adjunto (Netlify Functions + Resend) -> permite envío complementario por WhatsApp.
 
-## Documentación Esencial
-- [Arquitectura (Stack y Flujos)](docs/ARCHITECTURE.md)
-- [Mapa de Archivos (Módulos y Responsabilidades)](docs/FILE_MAP.md)
-- [Sistema de Diseño (Colores y UI)](docs/DESIGN_SYSTEM.md)
-- [Gestión del Catálogo (Google Sheets y Reglas)](docs/CATALOG.md)
-- [Backlog (Diagnóstico y Mejoras Pendientes)](docs/BACKLOG.md)
+## Protocolo de Producción Obligatorio
+> Documento normativo: [`.agent/rules/05-contexto-y-despliegue.md`](.agent/rules/05-contexto-y-despliegue.md)
 
-## Convenciones del Proyecto
-1. **Puro JS ES6**: El proyecto no utiliza Node.js, Webpack, Vite, React ni Vue. Emplea `import`/`export` nativos de ES6 y se despacha directamente al navegador.
-2. **Tailwind via CDN**: Las clases CSS están escritas directo en los literales JS o en el `index.html`. 
-3. **Comunicación Event-Driven**: Los componentes no se invocan entre sí directamente. Uno emite un CustomEvent global (`document.dispatchEvent`) y otro lo atrapa. 
-4. **Resiliencia de Red**: Peticiones críticas (al Apps Script) envueltas en `Promise.race()` dentro de `gasClient.js` para asegurar fallbacks y experiencia fluida.
+1. **Ahorro de tokens:** Leer primero este archivo y [`docs/FILE_MAP.md`](docs/FILE_MAP.md). Abrir únicamente los archivos estrictamente necesarios.
+2. **Cero push directo a `main`:** Trabajar por fases en ramas (`feat/fase-N-nombre` o `chore/...`). Preparar PR / Deploy Preview.
+3. **Cero SQL destructivo:** Migraciones aditivas y versionadas en `supabase/migrations/` con rollback documentado.
+4. **Secretos seguros:** Jamás commitear API keys. Variables en Netlify y documentadas en [`docs/ENV_VARS.md`](docs/ENV_VARS.md).
+5. **Retrocompatibilidad:** No romper registros históricos de pedidos en la tabla `orders`.
+6. **Criterio de merge:** Pruebas verificadas, checklist de QA, Deploy Preview probado y **aprobación explícita del usuario**.
+7. **Documentación continua:** Actualizar [`docs/FILE_MAP.md`](docs/FILE_MAP.md), [`docs/CHANGELOG.md`](docs/CHANGELOG.md) y listar pasos manuales.
+8. **Prudencia:** Ante dudas de seguridad o ambigüedad, consultar antes de aplicar cambios.
+9. **Idiomas:** Código/comentarios en inglés técnico; interfaz, correos y PDF en español institucional de México.
+10. **Reporte de fase:** Detallar cambios, archivos tocados, cómo probar, riesgos y rollback.
 
-## Comandos / Rutina de Desarrollo
-- **Instalar dependencias**: `N/A`. No hay `package.json`.
-- **Servir en Local**: Debes levantar un servidor web estático básico desde la raíz.
-  ```bash
-  python -m http.server 8080
-  # o
-  npx serve .
-  ```
-- **Hacer Build**: `N/A`.
-- **Despliegue**: Automático en Netlify al pushear a la rama principal (revisar `netlify.toml`).
-- **Backend**: Cualquier modificación en `Code.gs` debe copiarse manualmente al editor de Apps Script web y crear una "Nueva Implementación".
+## Stack Técnico (Filosofía NO-BUILD Estricta)
+* **Frontend:** Vanilla JavaScript ES6 nativo (`import`/`export`), Tailwind CSS vía CDN. **Prohibido introducir React/Vue/Webpack/Vite/bundlers**.
+* **Arquitectura:** Event-Driven Architecture (EDA) con `CustomEvent` en `document`. Ver detalle en [`docs/EVENTS.md`](docs/EVENTS.md).
+* **Motor PDF:** `jsPDF (2.5.1)` + `jsPDF-AutoTable (3.8.2)` en el cliente (vectorial, multipágina, Carta).
+* **Base de Datos:** Supabase PostgreSQL (`products` con RLS público; `orders` gestionada vía Service Role). Ver [`docs/DATA_MODEL.md`](docs/DATA_MODEL.md).
+* **Backend:** Netlify Functions Node.js (`netlify/functions/orders.js`) + Resend API.
+* **Hosting & CI/CD:** Netlify conectado a la rama `main` de GitHub.
 
-*Este documento es el punto de inicio definitivo para cualquier IA o Dev que toque este repositorio.*
+## Comandos y Rutinas de Desarrollo
+```bash
+# Servir en local (puerto 8080 o cualquiera disponible)
+python -m http.server 8080
+# o alternativamente con Node
+npx serve .
+
+# Emular Netlify Functions en local (opcional)
+npx netlify dev
+```
+
+## Índice de Documentación Esencial
+* [Arquitectura y Flujos](docs/ARCHITECTURE.md)
+* [Mapa de Archivos y Responsabilidades](docs/FILE_MAP.md)
+* [Catálogo de Eventos (CustomEvents)](docs/EVENTS.md)
+* [Modelo de Datos y Esquema SQL](docs/DATA_MODEL.md)
+* [Variables de Entorno Requeridas](docs/ENV_VARS.md)
+* [Roles de Subagentes](docs/AGENT_ROLES.md)
+* [Guía Operativa y Runbook](docs/RUNBOOK.md)
+* [Backlog Priorizado](docs/BACKLOG.md)
+* [Historial de Cambios (Changelog)](docs/CHANGELOG.md)
+* [Sistema de Diseño](docs/DESIGN_SYSTEM.md)
