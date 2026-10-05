@@ -4,8 +4,11 @@
 -- NOTA: Migración ADITIVA y retrocompatible para la tabla public.orders.
 -- ==============================================================================
 
--- 1. Asegurar restricción UNIQUE en la columna 'folio'
--- Si ya existen folios duplicados previos, se agrega de forma segura.
+-- 1. Nueva columna: idempotency_key con restricción UNIQUE directa
+ALTER TABLE public.orders 
+ADD COLUMN IF NOT EXISTS idempotency_key TEXT UNIQUE;
+
+-- 2. Asegurar restricción UNIQUE en la columna 'folio'
 DO $$
 BEGIN
     IF NOT EXISTS (
@@ -13,20 +16,6 @@ BEGIN
         WHERE conname = 'orders_folio_key' AND conrelid = 'public.orders'::regclass
     ) THEN
         ALTER TABLE public.orders ADD CONSTRAINT orders_folio_key UNIQUE (folio);
-    END IF;
-END $$;
-
--- 2. Nueva columna: idempotency_key (para evitar doble sumisión/duplicados por reintentos o doble clic)
-ALTER TABLE public.orders 
-ADD COLUMN IF NOT EXISTS idempotency_key TEXT;
-
-DO $$
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM pg_constraint 
-        WHERE conname = 'orders_idempotency_key_key' AND conrelid = 'public.orders'::regclass
-    ) THEN
-        ALTER TABLE public.orders ADD CONSTRAINT orders_idempotency_key_key UNIQUE (idempotency_key);
     END IF;
 END $$;
 
@@ -41,14 +30,14 @@ ADD COLUMN IF NOT EXISTS email_status TEXT DEFAULT 'pending'; -- 'pending', 'sen
 ALTER TABLE public.orders 
 ADD COLUMN IF NOT EXISTS email_error TEXT;
 
--- 5. Nuevas columnas opcionales de auditoría y contacto
+-- 5. Nuevas columnas opcionales de auditoría y desglose fiscal
 ALTER TABLE public.orders 
 ADD COLUMN IF NOT EXISTS subtotal_mxn NUMERIC;
 
 ALTER TABLE public.orders 
 ADD COLUMN IF NOT EXISTS iva_mxn NUMERIC;
 
--- Índice para búsquedas rápidas por idempotency_key y status
+-- 6. Índices para búsquedas rápidas por idempotency_key y status
 CREATE INDEX IF NOT EXISTS idx_orders_idempotency ON public.orders (idempotency_key);
 CREATE INDEX IF NOT EXISTS idx_orders_email_status ON public.orders (email_status);
 
@@ -59,7 +48,6 @@ CREATE INDEX IF NOT EXISTS idx_orders_email_status ON public.orders (email_statu
 DROP INDEX IF EXISTS public.idx_orders_email_status;
 DROP INDEX IF EXISTS public.idx_orders_idempotency;
 
-ALTER TABLE public.orders DROP CONSTRAINT IF EXISTS orders_idempotency_key_key;
 ALTER TABLE public.orders DROP CONSTRAINT IF EXISTS orders_folio_key;
 
 ALTER TABLE public.orders DROP COLUMN IF EXISTS iva_mxn;
