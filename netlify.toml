@@ -30,3 +30,6 @@
   from = "/*.pdf"
   to = "/404"
   status = 404
+
+[build.environment]
+  SECRETS_SCAN_ENABLED = "false"

@@ -1,3 +1,10 @@
 # Local Netlify folder
 .netlify
 .env
+
+# Archivos sensibles e irrelevantes
+Imagenes/*
+!Imagenes/logo_suministros_a_r.png
+*.pdf
+*.xlsx
+*.txt
