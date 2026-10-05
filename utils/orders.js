@@ -471,16 +471,26 @@ async function _handleSubmitOrder(items, total, dateStr) {
     
       // Configurar html2pdf usando el string HTML perfecto
       const htmlStr = _generateInvoiceHTML(items, total, dateStr, municipio);
+      
+      const container = document.createElement('div');
+      container.style.position = 'absolute';
+      container.style.top = '-9999px';
+      container.style.left = '0';
+      container.style.width = '800px';
+      container.innerHTML = htmlStr;
+      document.body.appendChild(container);
+
       const opt = {
         margin:       0.3,
         filename:     `Pedido_${municipio.replace(/[^a-zA-Z0-9]/g, '')}.pdf`,
         image:        { type: 'jpeg', quality: 0.98 },
-        html2canvas:  { scale: 2, useCORS: true },
+        html2canvas:  { scale: 2, useCORS: true, windowWidth: 800 },
         jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
       };
 
       // Generar base64
-      const pdfBase64 = await html2pdf().from(htmlStr).set(opt).outputPdf('datauristring');
+      const pdfBase64 = await html2pdf().from(container).set(opt).outputPdf('datauristring');
+      document.body.removeChild(container);
 
     
     if (feedback) feedback.textContent = 'Enviando orden y correo...';
@@ -905,9 +915,7 @@ function _printClientOnly(items, total, dateStr) {
   const win = window.open('', '_blank', 'width=1100,height=800');
   if (!win) { window.print(); return; }
   
-  win.document.write(htmlStr);
-  win.document.write('<script>window.onload=()=>{window.print();window.close();}<\/script>');
-  win.document.close();
+  win.document.write('<!DOCTYPE html><html><head><title>Imprimir</title></head><body style="margin:0">' + htmlStr + '<script>window.onload=()=>{window.print();window.close();}<\/script></body></html>'); win.document.close();
 }
 
 function _printAdminOnly(items, dateStr) {
@@ -957,7 +965,7 @@ function _printAdminOnly(items, dateStr) {
     </table>
     <p class="note">📦 ${TABLA_B_FOOTER}</p>
     <script>window.onload=()=>{window.print();window.close();}<\/script>
-    </body></html>`);
+    </div>`);
   win.document.close();
 }
 
@@ -1033,12 +1041,9 @@ function _generateInvoiceHTML(items, total, dateStr, municipioVal) {
       </tr>`;
   }).join('');
 
-  return `<!DOCTYPE html>
-<html lang="es"><head>
-<meta charset="UTF-8"/>
-<title>${_esc(COMPANY_NAME)} \u2014 Cotizaci\u00f3n ${folio}</title>
-<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,400;0,600;0,700;0,800;1,400&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet"/>
-<style>
+  return `<div>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,400;0,600;0,700;0,800;1,400&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+  <style>
 /* ===== RESET ===== */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: 'Source Sans 3', sans-serif; font-size: 10.5px; color: #1a1a2e; background: #fff; }
@@ -1078,8 +1083,7 @@ tfoot { display: table-row-group; page-break-inside: avoid; }
 .tf-tot td { background: #E2E8F0; color: #0A192F; font-weight: 800; font-size: 11px; padding: 8px 10px; border-bottom: none; }
 .footer-note { font-size: 8.5px; color: #94A3B8; text-align: center; margin-top: 10px; font-style: italic; }
 </style>
-</head>
-<body>
+
   <div class="main-header">
     <div class="mh-left">
       <div>
@@ -1133,5 +1137,5 @@ tfoot { display: table-row-group; page-break-inside: avoid; }
     </table>
   </div>
   <div class="footer-note">${TABLA_A_FOOTER}</div>
-</body></html>`;
+</div>`;
 }
