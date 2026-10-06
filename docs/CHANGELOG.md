@@ -3,6 +3,20 @@
 Todas las modificaciones notables a este proyecto se documentan en este archivo.
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/).
 
+## [1.5.1] — 2026-10-05
+### Corregido & Mejorado
+* **Restauración del Tema Institucional Azul Policía (`#0A192F`):**
+  * Subsanado cierre de etiqueta `<script>` en `index.html` para la configuración corporativa de Tailwind CDN (`navy`, `navy-light`, `gold`, `gold-hover`), restituyendo la paleta táctica institucional en encabezado, banner y tarjetas.
+* **Rediseño Intuitivo de Matriz de Tallas por Lote:**
+  * Reemplazo de acordeón oculto por **Selector Segmentado Directo (Tabs)** en la tarjeta: `🔘 INDIVIDUAL` vs `📦 MATRIZ POR LOTE`.
+  * **Panel Táctico Azul Policía y Dorado:** Fondo en gradiente `navy`/`navy-light` con reborde dorado, steppers táctiles de alto contraste (`−` y `+`), y atajo `+5` por talla.
+  * **Botones de Llenado Rápido por Escuadra:** Atajos de asignación masiva `+5 c/u`, `+10 c/u`, `+20 c/u` y botón `Limpiar`.
+  * **Resaltado Activo con Resplandor Dorado:** Las tallas seleccionadas con cantidad > 0 activan halo dorado (`ring-2 ring-gold border-gold`), badge dorado y cifras en negrita.
+  * **Modal de Matriz Ampliada en Pantalla Completa:** Opción `Ampliar` para visualizar la matriz completa con diseño amplio y selector de color integrado.
+  * Recálculo en tiempo real de piezas totales, subtotal estimado en MXN y actualización dinámica de la etiqueta del botón de pedido.
+
+---
+
 ## [1.5.0] — 2026-10-05
 ### Añadido
 * **Fase 3 (UX B2B Municipal y Documental):**
