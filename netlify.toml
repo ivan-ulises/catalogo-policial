@@ -16,6 +16,19 @@
   [headers.values]
     X-Robots-Tag = "noindex"
 
+# Panel Administrativo: Prohibido indexar por motores de búsqueda
+[[headers]]
+  for = "/admin*"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow, noarchive"
+    X-Frame-Options = "DENY"
+
+[[headers]]
+  for = "/admin.html"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow, noarchive"
+    X-Frame-Options = "DENY"
+
 [[redirects]]
   from = "/*.gs"
   to = "/404"

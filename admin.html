@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full bg-slate-950 text-slate-100 antialiased">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, nofollow, noarchive" />
+  <title>Panel Administrativo — Suministros A. R.</title>
+
+  <!-- Tailwind CSS por CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            navy: '#0A192F',
+            gold: '#FFD700',
+            'gold-dark': '#E6C200'
+          }
+        }
+      }
+    };
+  </script>
+
+  <!-- Supabase JS Client (v2) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <!-- jsPDF + AutoTable para regenerar el PDF oficial desde DB -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+</head>
+<body class="h-full flex flex-col font-sans selection:bg-[#FFD700] selection:text-slate-950">
+
+  <!-- =========================================================================
+       1. SECCIÓN DE INICIO DE SESIÓN (LOGIN)
+       ========================================================================= -->
+  <section id="admin-login-section" class="flex-1 flex items-center justify-center p-4">
+    <div class="w-full max-w-md bg-slate-900/90 border border-slate-800 rounded-2xl p-8 shadow-2xl backdrop-blur-xl">
+      <div class="text-center mb-8">
+        <h1 class="text-2xl font-black tracking-tight text-[#FFD700] font-mono">SUMINISTROS A. R.</h1>
+        <p class="text-xs text-slate-400 mt-1 uppercase tracking-widest font-semibold">Portal de Operaciones B2B</p>
+      </div>
+
+      <form id="form-admin-login" class="space-y-4">
+        <div>
+          <label for="input-login-email" class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
+            Correo Electrónico
+          </label>
+          <input
+            id="input-login-email"
+            type="email"
+            required
+            autocomplete="email"
+            placeholder="operaciones@suministrosar.com"
+            class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-[#FFD700]/50 focus:border-[#FFD700]"
+          />
+        </div>
+
+        <div>
+          <label for="input-login-password" class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
+            Contraseña
+          </label>
+          <input
+            id="input-login-password"
+            type="password"
+            required
+            autocomplete="current-password"
+            placeholder="••••••••••••"
+            class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-[#FFD700]/50 focus:border-[#FFD700]"
+          />
+        </div>
+
+        <div id="login-error-msg" class="text-xs text-rose-400 font-semibold p-2.5 rounded-lg bg-rose-950/30 border border-rose-800/40 hidden">
+        </div>
+
+        <button
+          id="btn-submit-login"
+          type="submit"
+          class="w-full py-2.5 bg-[#FFD700] hover:bg-[#FFC200] text-slate-950 font-bold text-sm rounded-xl transition-all duration-200 hover:scale-[1.01] active:scale-[0.99]"
+        >
+          Ingresar al Panel
+        </button>
+
+        <div class="text-center pt-2">
+          <button
+            id="btn-login-magic"
+            type="button"
+            class="text-xs text-slate-400 hover:text-[#FFD700] underline transition-colors"
+          >
+            Enviar enlace de acceso mágico (Magic Link)
+          </button>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <!-- =========================================================================
+       2. AVISO DE NO AUTORIZADO (Para usuarios sin registro en admin_users)
+       ========================================================================= -->
+  <section id="admin-unauthorized-notice" class="flex-1 flex items-center justify-center p-4 hidden">
+    <div class="max-w-md w-full bg-slate-900 border border-rose-800/50 rounded-2xl p-6 text-center">
+      <div class="text-3xl mb-3">⛔</div>
+      <h2 class="text-lg font-bold text-rose-400 mb-2">Acceso Administrativo Denegado</h2>
+      <p class="text-xs text-slate-400 mb-6">
+        Tu cuenta está autenticada, pero tu usuario no está registrado en la tabla de administradores autorizados.
+      </p>
+      <button onclick="document.dispatchEvent(new CustomEvent('admin:auth:logout'))" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-200 rounded-lg">
+        Cerrar Sesión
+      </button>
+    </div>
+  </section>
+
+  <!-- =========================================================================
+       3. APLICACIÓN PRINCIPAL DEL PANEL ADMINISTRATIVO
+       ========================================================================= -->
+  <div id="admin-app-section" class="flex-1 flex flex-col hidden">
+    <!-- Barra Superior (Top Navigation) -->
+    <header class="bg-slate-900/90 border-b border-slate-800/80 px-6 py-3.5 flex items-center justify-between sticky top-0 z-40 backdrop-blur-md">
+      <div class="flex items-center gap-6">
+        <div>
+          <span class="font-mono font-black text-sm text-[#FFD700] tracking-wider block">SUMINISTROS A. R.</span>
+          <span class="text-[10px] text-slate-400 tracking-widest uppercase font-semibold">Panel de Control</span>
+        </div>
+
+        <nav class="flex items-center gap-1.5 bg-slate-950 p-1 rounded-xl border border-slate-800">
+          <button data-view-target="dashboard" class="px-4 py-1.5 text-xs font-bold rounded-lg bg-[#FFD700] text-slate-950 transition-colors">
+            Métricas
+          </button>
+          <button data-view-target="orders" class="px-4 py-1.5 text-xs font-semibold rounded-lg text-slate-400 hover:text-slate-100 transition-colors">
+            Requisiciones
+          </button>
+          <button data-view-target="products" class="px-4 py-1.5 text-xs font-semibold rounded-lg text-slate-400 hover:text-slate-100 transition-colors">
+            Catálogo
+          </button>
+        </nav>
+      </div>
+
+      <div class="flex items-center gap-4 text-xs">
+        <span id="admin-user-email" class="text-slate-400 font-mono"></span>
+        <button id="btn-admin-logout" class="px-3 py-1.5 bg-slate-800 hover:bg-rose-950/60 hover:text-rose-400 text-slate-300 font-bold rounded-lg border border-slate-700 transition-colors">
+          Salir
+        </button>
+      </div>
+    </header>
+
+    <!-- Contenido Dinámico según Vista -->
+    <main class="flex-1 p-6 max-w-7xl mx-auto w-full">
+      <!-- VISTA 1: DASHBOARD DE MÉTRICAS -->
+      <section id="view-dashboard" class="admin-view-panel">
+        <div class="mb-6">
+          <h1 class="text-xl font-bold text-slate-100">Resumen y Métricas de Requisiciones</h1>
+          <p class="text-xs text-slate-400">Indicadores clave de volumen de cotizaciones, municipios y productos.</p>
+        </div>
+        <div id="dashboard-metrics-container"></div>
+      </section>
+
+      <!-- VISTA 2: LISTADO Y GESTIÓN DE PEDIDOS -->
+      <section id="view-orders" class="admin-view-panel hidden">
+        <div class="flex flex-wrap items-center justify-between gap-4 mb-6">
+          <div>
+            <h1 class="text-xl font-bold text-slate-100">Requisiciones y Cotizaciones Recibidas</h1>
+            <p class="text-xs text-slate-400">Consulta histórica, actualización de estados y regeneración de documentos oficiales.</p>
+          </div>
+          <button id="btn-export-orders-csv" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 rounded-xl border border-slate-700 flex items-center gap-2 transition-colors">
+            <span>📥</span> Exportar a CSV
+          </button>
+        </div>
+
+        <!-- Barra de Filtros y Búsqueda -->
+        <div class="bg-slate-900/60 p-4 rounded-xl border border-slate-800 mb-6 grid grid-cols-1 md:grid-cols-4 gap-3 text-xs">
+          <div>
+            <label class="block font-bold text-slate-400 uppercase mb-1">Buscar (Folio o Municipio)</label>
+            <input id="input-filter-search" type="text" placeholder="Ej. COT-2026 o Nochixtlán..." class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-100 focus:outline-none focus:border-[#FFD700]" />
+          </div>
+
+          <div>
+            <label class="block font-bold text-slate-400 uppercase mb-1">Filtrar por Estatus</label>
+            <select id="select-filter-status" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-100 focus:outline-none focus:border-[#FFD700]">
+              <option value="todos">Todos los estatus</option>
+              <option value="nueva">Nueva</option>
+              <option value="pendiente">Pendiente</option>
+              <option value="en revisión">En revisión</option>
+              <option value="en_proceso">En proceso</option>
+              <option value="cotizada">Cotizada</option>
+              <option value="aprobada">Aprobada</option>
+              <option value="rechazada">Rechazada</option>
+              <option value="entregada">Entregada</option>
+              <option value="prueba">Prueba</option>
+              <option value="cancelada">Cancelada</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block font-bold text-slate-400 uppercase mb-1">Desde Fecha</label>
+            <input id="input-filter-date-from" type="date" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-100 focus:outline-none focus:border-[#FFD700]" />
+          </div>
+
+          <div>
+            <label class="block font-bold text-slate-400 uppercase mb-1">Hasta Fecha</label>
+            <input id="input-filter-date-to" type="date" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-100 focus:outline-none focus:border-[#FFD700]" />
+          </div>
+        </div>
+
+        <!-- Contenedor de la Tabla -->
+        <div id="orders-table-container" class="bg-slate-900/60 rounded-xl border border-slate-800 overflow-hidden shadow-xl"></div>
+      </section>
+
+      <!-- VISTA 3: CRUD DE CATÁLOGO DE PRODUCTOS -->
+      <section id="view-products" class="admin-view-panel hidden">
+        <div class="flex items-center justify-between mb-6">
+          <div>
+            <h1 class="text-xl font-bold text-slate-100">Catálogo Maestro de Productos</h1>
+            <p class="text-xs text-slate-400">Administra precios oficiales, tallas, fichas técnicas y visibilidad.</p>
+          </div>
+          <button id="btn-new-product" class="px-4 py-2 bg-[#FFD700] hover:bg-[#FFC200] text-slate-950 font-bold text-xs rounded-xl transition-all shadow-md">
+            + Nuevo Producto
+          </button>
+        </div>
+
+        <div id="products-table-container" class="bg-slate-900/60 rounded-xl border border-slate-800 overflow-hidden shadow-xl"></div>
+      </section>
+    </main>
+  </div>
+
+  <!-- =========================================================================
+       4. MODAL: DETALLE COMPLETO DE ORDEN
+       ========================================================================= -->
+  <div id="order-detail-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm hidden">
+    <div class="w-full max-w-4xl bg-slate-900 border border-slate-800 rounded-2xl p-6 max-h-[90vh] overflow-y-auto shadow-2xl relative">
+      <button id="btn-close-order-modal" class="absolute top-5 right-5 text-slate-400 hover:text-slate-100 font-mono text-xl p-1">
+        ✕
+      </button>
+      <div id="order-detail-content"></div>
+    </div>
+  </div>
+
+  <!-- =========================================================================
+       5. MODAL: CREAR / EDITAR PRODUCTO
+       ========================================================================= -->
+  <div id="product-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm hidden">
+    <div class="w-full max-w-xl bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl relative">
+      <button id="btn-close-prod-modal" class="absolute top-5 right-5 text-slate-400 hover:text-slate-100 font-mono text-xl p-1">
+        ✕
+      </button>
+      <h2 id="product-modal-title" class="text-lg font-bold text-slate-100 mb-4">Producto</h2>
+
+      <form id="form-product" class="space-y-3.5 text-xs">
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-bold text-slate-400 uppercase mb-1">ID / SKU *</label>
+            <input id="input-prod-id" type="text" required placeholder="PROD-01" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-slate-100 focus:outline-none focus:border-[#FFD700]" />
+          </div>
+          <div>
+            <label class="block font-bold text-slate-400 uppercase mb-1">Precio Unitario (MXN con IVA) *</label>
+            <input id="input-prod-precio" type="number" step="0.01" required placeholder="250.00" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-slate-100 focus:outline-none focus:border-[#FFD700]" />
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-400 uppercase mb-1">Nombre Comercial del Bien *</label>
+          <input id="input-prod-nombre" type="text" required placeholder="Gorra Gabardina Táctica" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-slate-100 focus:outline-none focus:border-[#FFD700]" />
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-400 uppercase mb-1">Descripción / Ficha Técnica</label>
+          <textarea id="input-prod-desc" rows="2" placeholder="Confeccionada en gabardina 100% algodón..." class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-slate-100 focus:outline-none focus:border-[#FFD700]"></textarea>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-bold text-slate-400 uppercase mb-1">Partida Presupuestal</label>
+            <input id="input-prod-partida" type="text" placeholder="28301 FORTAMUN" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-slate-100 focus:outline-none focus:border-[#FFD700]" />
+          </div>
+          <div>
+            <label class="block font-bold text-slate-400 uppercase mb-1">Unidad de Medida</label>
+            <input id="input-prod-unidad" type="text" placeholder="PZA, PAR, JGO..." class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-slate-100 focus:outline-none focus:border-[#FFD700]" />
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-bold text-slate-400 uppercase mb-1">Tallas Disponibles (comas)</label>
+            <input id="input-prod-tallas" type="text" placeholder="S, M, L, XL ó Unitalla" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-slate-100 focus:outline-none focus:border-[#FFD700]" />
+          </div>
+          <div>
+            <label class="block font-bold text-slate-400 uppercase mb-1">URLs de Imagen (comas)</label>
+            <input id="input-prod-imagen" type="text" placeholder="https://..." class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-slate-100 focus:outline-none focus:border-[#FFD700]" />
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2 pt-2">
+          <input id="input-prod-active" type="checkbox" checked class="w-4 h-4 rounded text-[#FFD700] focus:ring-0 bg-slate-950 border-slate-800" />
+          <label for="input-prod-active" class="font-bold text-slate-300 uppercase cursor-pointer">Producto Activo en el Catálogo Público</label>
+        </div>
+
+        <div class="flex justify-end gap-2 pt-3 border-t border-slate-800">
+          <button type="submit" class="px-4 py-2 bg-[#FFD700] hover:bg-[#FFC200] text-slate-950 font-bold text-xs rounded-xl transition-colors">
+            Guardar Producto
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Entry Point de JavaScript -->
+  <script type="module" src="/admin/admin.js"></script>
+</body>
+</html>

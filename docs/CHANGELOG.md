@@ -5,6 +5,24 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/).
 
 ---
 
+## [1.4.0] — 2026-10-05
+### Añadido
+* **Fase 2 (Panel Administrativo B2B y Gestión de Requisiciones):**
+  * Portal `/admin.html` con arquitectura Vanilla JS ES6 modular desacoplada mediante constantes `EVT`.
+  * Integración con Supabase Auth (correo/contraseña y magic links) y validación de permisos en la tabla `public.admin_users`.
+  * Políticas de Row Level Security (RLS) para lectura/actualización de `orders` y CRUD completo de `products` restringido a administradores verificados vía función `public.is_admin()`.
+  * Módulo de requisiciones: filtros por búsqueda, estatus y fechas, paginación, visualización de partidas y actualización de estados (`nueva`, `en revisión`, `cotizada`, `aprobada`, `rechazada`, `entregada`).
+  * Notas internas y bitácora de auditoría histórica inmutable en `public.order_audit_logs`.
+  * Endpoint serverless protegido `netlify/functions/admin-resend.js` para reenvío administrativo de cotizaciones con PDF adjunto.
+  * Regeneración y descarga client-side de PDF formal Carta idéntico al emitido al cliente a partir de los datos en base de datos.
+  * Exportación de requisiciones a CSV compatible con Excel.
+  * Módulo CRUD de catálogo maestro de productos con validaciones de formulario.
+  * Dashboard con métricas de cotizaciones del mes, monto total, tasa de aprobación, municipios recurrentes y productos más solicitados.
+  * Cabeceras de seguridad en `netlify.toml` con directiva `X-Robots-Tag: noindex, nofollow, noarchive` para la ruta `/admin*`.
+  * Migración SQL aditiva en `supabase/migrations/20261005_fase2_admin_panel.sql` con script de rollback documentado.
+
+---
+
 ## [1.3.0] — 2026-10-05
 ### Añadido
 * **Fase 1 (Blindaje Serverless y Base de Datos):**
