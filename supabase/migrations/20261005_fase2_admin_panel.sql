@@ -76,6 +76,10 @@ CREATE POLICY "Admins pueden actualizar pedidos" ON public.orders
     USING (public.is_admin())
     WITH CHECK (public.is_admin());
 
+CREATE POLICY "Admins pueden eliminar pedidos" ON public.orders
+    FOR DELETE TO authenticated
+    USING (public.is_admin());
+
 -- Políticas RLS para order_audit_logs
 CREATE POLICY "Admins pueden leer logs de auditoria" ON public.order_audit_logs
     FOR SELECT TO authenticated

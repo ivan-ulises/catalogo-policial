@@ -21,6 +21,8 @@ export const EVT = Object.freeze({
   ORDER_RESEND_EMAIL: 'admin:orders:resend_email',
   ORDER_DOWNLOAD_PDF: 'admin:orders:download_pdf',
   ORDER_EXPORT_CSV: 'admin:orders:export_csv',
+  ORDER_DELETE: 'admin:orders:delete',
+  ORDER_EDIT_MUNICIPALITY: 'admin:orders:edit_municipality',
 
   // Catálogo de Productos (CRUD)
   PRODUCTS_LOAD_REQUEST: 'admin:products:load_request',

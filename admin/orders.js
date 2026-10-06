@@ -115,7 +115,9 @@ export function renderOrdersTable(orders, totalCount) {
     'cotizada': 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30',
     'aprobada': 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
     'rechazada': 'bg-rose-500/10 text-rose-400 border-rose-500/30',
-    'entregada': 'bg-slate-500/10 text-slate-400 border-slate-500/30'
+    'entregada': 'bg-slate-500/10 text-slate-400 border-slate-500/30',
+    'prueba': 'bg-yellow-500/10 text-yellow-300 border-yellow-500/30',
+    'cancelada': 'bg-gray-500/10 text-gray-400 border-gray-500/30'
   };
 
   const rows = orders.map(ord => {
@@ -294,7 +296,7 @@ function renderOrderDetailView(order, auditLogs) {
       </li>`;
   }).join('');
 
-  const statusOptions = ['nueva', 'en revisión', 'cotizada', 'aprobada', 'rechazada', 'entregada', 'pendiente', 'en_proceso']
+  const statusOptions = ['nueva', 'en revisión', 'cotizada', 'aprobada', 'rechazada', 'entregada', 'pendiente', 'en_proceso', 'prueba', 'cancelada']
     .map(st => `<option value="${st}" ${order.status === st ? 'selected' : ''}>${st.toUpperCase()}</option>`)
     .join('');
 
@@ -312,11 +314,17 @@ function renderOrderDetailView(order, auditLogs) {
       </div>
 
       <div class="flex items-center gap-2">
+        <button id="btn-edit-order-muni" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 rounded-lg border border-slate-700 flex items-center gap-1.5 transition-colors">
+          <span>✏️</span> Editar Municipio
+        </button>
         <button id="btn-download-order-pdf" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 rounded-lg border border-slate-700 flex items-center gap-1.5 transition-colors">
           <span>📄</span> Descargar PDF
         </button>
         <button id="btn-resend-order-email" class="px-3 py-1.5 bg-blue-600/20 hover:bg-blue-600/30 text-xs font-semibold text-blue-400 rounded-lg border border-blue-500/40 flex items-center gap-1.5 transition-colors">
           <span>✉</span> Reenviar Correo
+        </button>
+        <button id="btn-delete-order" class="px-3 py-1.5 bg-rose-950/40 hover:bg-rose-900/60 text-xs font-semibold text-rose-400 rounded-lg border border-rose-800/40 flex items-center gap-1.5 transition-colors">
+          <span>🗑️</span> Eliminar
         </button>
       </div>
     </div>
@@ -422,6 +430,88 @@ function renderOrderDetailView(order, auditLogs) {
     const customEmail = prompt('Ingresa el correo destino para el reenvío:', 'terminalasuncion.1@gmail.com');
     if (customEmail) resendOrderEmail(order.id, customEmail.trim());
   });
+
+  document.getElementById('btn-edit-order-muni')?.addEventListener('click', () => {
+    const nuevoMuni = prompt('Modificar nombre de Municipio / Dependencia solicitante:', order.municipio || '');
+    if (nuevoMuni && nuevoMuni.trim() && nuevoMuni.trim() !== order.municipio) {
+      editOrderMunicipality(order.id, nuevoMuni.trim());
+    }
+  });
+
+  document.getElementById('btn-delete-order')?.addEventListener('click', () => {
+    if (confirm(`⚠ ¿Estás seguro de eliminar permanentemente la orden ${order.folio} (${order.municipio})?\n\nEsta acción no se puede deshacer.`)) {
+      deleteOrder(order.id);
+    }
+  });
+}
+
+/**
+ * Elimina una orden y sus registros de auditoría asociados
+ */
+export async function deleteOrder(orderId) {
+  const sb = getSupabase();
+  try {
+    const { error } = await sb
+      .from('orders')
+      .delete()
+      .eq('id', orderId);
+
+    if (error) throw error;
+
+    document.dispatchEvent(new CustomEvent(EVT.TOAST, {
+      detail: { msg: '✓ Requisición eliminada permanentemente', type: 'success' }
+    }));
+
+    document.getElementById('order-detail-modal')?.classList.add('hidden');
+    await loadOrders();
+  } catch (err) {
+    console.error('[deleteOrder error]', err);
+    document.dispatchEvent(new CustomEvent(EVT.TOAST, {
+      detail: { msg: `Error al eliminar: ${err.message}`, type: 'error' }
+    }));
+  }
+}
+
+/**
+ * Edita el nombre del municipio de la orden
+ */
+export async function editOrderMunicipality(orderId, nuevoMunicipio) {
+  const sb = getSupabase();
+  try {
+    const { data: { user } } = await sb.auth.getUser();
+
+    const { error } = await sb
+      .from('orders')
+      .update({
+        municipio: nuevoMunicipio,
+        updated_at: new Date().toISOString(),
+        updated_by: user?.email || 'Admin'
+      })
+      .eq('id', orderId);
+
+    if (error) throw error;
+
+    await sb.from('order_audit_logs').insert({
+      order_id: orderId,
+      action: 'municipality_edited',
+      previous_state: { municipio: _selectedOrder?.municipio },
+      new_state: { municipio: nuevoMunicipio },
+      user_id: user?.id,
+      user_email: user?.email
+    });
+
+    document.dispatchEvent(new CustomEvent(EVT.TOAST, {
+      detail: { msg: '✓ Municipio actualizado', type: 'success' }
+    }));
+
+    await showOrderDetail(orderId);
+    await loadOrders();
+  } catch (err) {
+    console.error('[editOrderMunicipality error]', err);
+    document.dispatchEvent(new CustomEvent(EVT.TOAST, {
+      detail: { msg: `Error al actualizar municipio: ${err.message}`, type: 'error' }
+    }));
+  }
 }
 
 /**

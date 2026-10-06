@@ -27,11 +27,10 @@ export async function renderDashboard() {
 
     if (error) throw error;
 
-    const now = new Date();
-    const currentMonth = now.getMonth();
-    const currentYear = now.getFullYear();
+    // Filtrar órdenes reales (excluir estatus 'prueba' y 'cancelada' de las métricas comerciales)
+    const realOrders = orders.filter(o => o.status !== 'prueba' && o.status !== 'cancelada');
 
-    const ordersThisMonth = orders.filter(o => {
+    const ordersThisMonth = realOrders.filter(o => {
       if (!o.fecha) return false;
       const d = new Date(o.fecha);
       return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
@@ -40,9 +39,9 @@ export async function renderDashboard() {
     const totalOrdersMonth = ordersThisMonth.length;
     const totalMontoMonth = ordersThisMonth.reduce((acc, o) => acc + Number(o.total_mxn || 0), 0);
 
-    // Tasa de aprobación histórica
-    const totalApproved = orders.filter(o => o.status === 'aprobada' || o.status === 'entregada').length;
-    const approvalRate = orders.length > 0 ? Math.round((totalApproved / orders.length) * 100) : 0;
+    // Tasa de aprobación histórica sobre órdenes reales
+    const totalApproved = realOrders.filter(o => o.status === 'aprobada' || o.status === 'entregada').length;
+    const approvalRate = realOrders.length > 0 ? Math.round((totalApproved / realOrders.length) * 100) : 0;
 
     // Municipios recurrentes
     const muniCounts = {};
