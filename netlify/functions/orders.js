@@ -123,9 +123,10 @@ exports.handler = async (event, context) => {
       return { statusCode: 400, headers, body: JSON.stringify({ error: 'Payload requerido.' }) };
     }
 
-    const municipio = String(payload.municipio || '').trim();
+    const applicant = payload.applicant && typeof payload.applicant === 'object' ? payload.applicant : {};
+    const municipio = String(applicant.municipio || payload.municipio || '').trim();
     if (!municipio || municipio.length < 2 || municipio.length > 150) {
-      return { statusCode: 400, headers, body: JSON.stringify({ error: 'El nombre del municipio es inválido o está incompleto.' }) };
+      return { statusCode: 400, headers, body: JSON.stringify({ error: 'El nombre del municipio o corporación es inválido o está incompleto.' }) };
     }
 
     if (!Array.isArray(payload.items) || payload.items.length === 0 || payload.items.length > 100) {
@@ -251,10 +252,11 @@ exports.handler = async (event, context) => {
       status: 'pendiente',
       idempotency_key: idempotencyKey || null,
       items_snapshot: itemsSnapshot,
-      email_status: 'pending'
+      email_status: 'pending',
+      applicant_info: applicant
     };
 
-    const insertRes = await fetch(`${supabaseUrl}/rest/v1/orders`, {
+    let insertRes = await fetch(`${supabaseUrl}/rest/v1/orders`, {
       method: 'POST',
       headers: {
         'apikey': supabaseKey,
@@ -264,6 +266,25 @@ exports.handler = async (event, context) => {
       },
       body: JSON.stringify(orderRow)
     });
+
+    if (!insertRes.ok && orderRow.applicant_info) {
+      // Si la columna applicant_info aún no está aplicada en Supabase, reintentar sin ella para no romper el flujo
+      const fallbackRow = { ...orderRow };
+      delete fallbackRow.applicant_info;
+      const retryRes = await fetch(`${supabaseUrl}/rest/v1/orders`, {
+        method: 'POST',
+        headers: {
+          'apikey': supabaseKey,
+          'Authorization': `Bearer ${supabaseKey}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=representation'
+        },
+        body: JSON.stringify(fallbackRow)
+      });
+      if (retryRes.ok) {
+        insertRes = retryRes;
+      }
+    }
 
     if (!insertRes.ok) {
       const errText = await insertRes.text();
@@ -288,7 +309,14 @@ exports.handler = async (event, context) => {
         const emailHtml = `
           <h2>Nueva Requisición / Cotización Municipal</h2>
           <p><strong>Folio Oficial:</strong> ${folioReal}</p>
-          <p><strong>Municipio / Agencia:</strong> ${municipio}</p>
+          <p><strong>Municipio / Corporación:</strong> ${municipio}</p>
+          ${applicant.dependencia ? `<p><strong>Dependencia:</strong> ${applicant.dependencia}</p>` : ''}
+          ${applicant.solicitante ? `<p><strong>Titular / Solicitante:</strong> ${applicant.solicitante}${applicant.cargo ? ` (${applicant.cargo})` : ''}</p>` : ''}
+          ${applicant.telefono ? `<p><strong>Teléfono:</strong> ${applicant.telefono}</p>` : ''}
+          ${applicant.email ? `<p><strong>Correo Oficial:</strong> ${applicant.email}</p>` : ''}
+          ${applicant.rfc ? `<p><strong>RFC:</strong> ${applicant.rfc}</p>` : ''}
+          ${applicant.domicilio_entrega ? `<p><strong>Domicilio de Entrega:</strong> ${applicant.domicilio_entrega}</p>` : ''}
+          <hr/>
           <p><strong>Total de Piezas:</strong> ${totalPiezas}</p>
           <p><strong>Subtotal s/IVA:</strong> $${computedSubtotalSinIVA.toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN</p>
           <p><strong>IVA (16%):</strong> $${computedIVA.toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN</p>

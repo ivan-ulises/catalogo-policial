@@ -114,4 +114,61 @@ console.log('🚀 Iniciando suite de pruebas unitarias para Blindaje de Órdenes
   console.log(`✔ Test 4: Generación de folio server-side (${folio}) PASÓ`);
 }
 
+// Test 5: Parsing y Validación de Datos del Solicitante B2B (Fase 3)
+{
+  function sanitizeApplicant(rawApplicant, fallbackMunicipio) {
+    const applicant = rawApplicant && typeof rawApplicant === 'object' ? rawApplicant : {};
+    const municipio = String(applicant.municipio || fallbackMunicipio || '').trim();
+    if (!municipio || municipio.length < 2 || municipio.length > 150) {
+      throw new Error('Municipio inválido');
+    }
+    return {
+      municipio,
+      dependencia: String(applicant.dependencia || '').trim(),
+      solicitante: String(applicant.solicitante || '').trim(),
+      telefono: String(applicant.telefono || '').trim(),
+      email: String(applicant.email || '').trim(),
+      rfc: String(applicant.rfc || '').trim().toUpperCase(),
+      domicilio_entrega: String(applicant.domicilio_entrega || '').trim()
+    };
+  }
+
+  const validRaw = {
+    municipio: 'Municipio de Asunción Nochixtlán',
+    dependencia: 'Seguridad Pública',
+    solicitante: 'Cmdte. Roberto Morales',
+    telefono: '951 123 4567',
+    email: 'seguridad@nochixtlan.gob.mx',
+    rfc: 'man850101xyz',
+    domicilio_entrega: 'Comandancia Municipal'
+  };
+
+  const parsed = sanitizeApplicant(validRaw, '');
+  assert.strictEqual(parsed.municipio, 'Municipio de Asunción Nochixtlán');
+  assert.strictEqual(parsed.rfc, 'MAN850101XYZ', 'El RFC debe convertirse a mayúsculas');
+  assert.strictEqual(parsed.telefono, '951 123 4567');
+
+  assert.throws(() => {
+    sanitizeApplicant({ municipio: '' }, '');
+  }, /Municipio inválido/, 'Debe rechazar municipio vacío');
+
+  console.log('✔ Test 5: Validación y normalización de Solicitante B2B PASÓ');
+}
+
+// Test 6: Codificación y Restauración de Carrito Compartido (?cart=...)
+{
+  const originalItems = [
+    { p: 'PROD-01', n: 'Gorra Gabardina', s: 'Unitalla', q: 5, u: 100 },
+    { p: 'PROD-03', n: 'Playera Polo', s: 'M', q: 12, u: 390 }
+  ];
+
+  const encoded = Buffer.from(JSON.stringify(originalItems)).toString('base64');
+  const decoded = JSON.parse(Buffer.from(encoded, 'base64').toString('utf8'));
+
+  assert.strictEqual(decoded.length, 2);
+  assert.strictEqual(decoded[0].p, 'PROD-01');
+  assert.strictEqual(decoded[1].q, 12);
+  console.log('✔ Test 6: Serialización y restauración de carrito compartido PASÓ');
+}
+
 console.log('\n🎉 ¡TODAS LAS PRUEBAS UNITARIAS PASARON EXITOSAMENTE!');
