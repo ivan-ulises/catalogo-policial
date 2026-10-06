@@ -329,11 +329,16 @@ function renderOrderDetailView(order, auditLogs) {
       </div>
     </div>
 
-    <!-- Info del Municipio -->
+    <!-- Info del Municipio / Solicitante -->
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 my-4 p-4 rounded-xl bg-slate-900/60 border border-slate-800 text-xs">
       <div>
-        <span class="text-slate-400 font-bold block mb-1">MUNICIPIO / AGENCIA SOLICITANTE</span>
+        <span class="text-slate-400 font-bold block mb-1">MUNICIPIO / CORPORACIÓN SOLICITANTE</span>
         <span class="text-sm font-semibold text-slate-100">${order.municipio}</span>
+        ${order.applicant_info?.dependencia ? `<span class="block text-slate-300 mt-1">Área: <strong>${order.applicant_info.dependencia}</strong></span>` : ''}
+        ${order.applicant_info?.solicitante ? `<span class="block text-slate-400 mt-0.5">Titular: ${order.applicant_info.solicitante}</span>` : ''}
+        ${order.applicant_info?.telefono ? `<span class="block text-slate-400 mt-0.5">Tel: ${order.applicant_info.telefono} | Email: ${order.applicant_info.email || '—'}</span>` : ''}
+        ${order.applicant_info?.rfc ? `<span class="block text-slate-400 mt-0.5">RFC: ${order.applicant_info.rfc}</span>` : ''}
+        ${order.applicant_info?.domicilio_entrega ? `<span class="block text-slate-400 mt-0.5">Entrega: ${order.applicant_info.domicilio_entrega}</span>` : ''}
       </div>
       <div>
         <span class="text-slate-400 font-bold block mb-1">ESTADO DE ENVÍO DE CORREO</span>

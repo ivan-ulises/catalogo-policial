@@ -41,27 +41,11 @@
 
 import { fetchProducts } from './api/supabaseClient.js';
 import { initCatalog, renderError } from './components/catalog.js';
-import { initCart, getCartItems, getCartTotal } from './components/cart.js';
+import { initCart, getCartItems, getCartTotal, loadSharedCartFromParam } from './components/cart.js';
 import { initOrders } from './utils/orders.js';
 import { initWhatsApp, sendOrderViaWhatsApp } from './utils/whatsapp.js';
 
 // ─── Configuración ─────────────────────────────────────────────
-
-/**
- * URL del CSV público de tu Google Sheet.
- *
- * ADMIN: Pasos para obtener esta URL:
- *   1. Abre tu Google Sheet con las columnas:
- *      ID | Producto | Descripcion | Categoria | Tallas | Precio | ImagenURL
- *   2. Menú → Archivo → Publicar en la web
- *   3. Selecciona la hoja → formato CSV → Publicar
- *   4. Copia la URL generada y pégala aquí.
- *
- * Si dejas esta constante como cadena vacía (''), la app cargará
- * automáticamente el catálogo de demostración (getDemoProducts).
- *
- * @type {string}
- */
 
 // ─── Inicialización ────────────────────────────────────────────
 
@@ -72,7 +56,8 @@ import { initWhatsApp, sendOrderViaWhatsApp } from './utils/whatsapp.js';
  *  1. Cart   (registra listeners antes de que catalog los dispare)
  *  2. Orders (registra listener de 'cart:checkout')
  *  3. WhatsApp (registra listeners de WA)
- *  4. Catálogo (fetch de datos → render)
+ *  4. Restauración de carrito compartido si viene en query string
+ *  5. Catálogo (fetch de datos → render)
  */
 async function bootstrap() {
   // 1. Inicializar componentes que escuchan eventos
@@ -80,10 +65,17 @@ async function bootstrap() {
   initOrders();
   initWhatsApp();
 
-  // 2. Cargar y renderizar el catálogo
+  // 2. Revisar si hay un carrito compartido en la URL (?cart=...)
+  const urlParams = new URLSearchParams(window.location.search);
+  const sharedCart = urlParams.get('cart');
+  if (sharedCart) {
+    loadSharedCartFromParam(sharedCart);
+  }
+
+  // 3. Cargar y renderizar el catálogo
   await loadCatalog();
 
-  // 3. Registrar eventos globales de coordinación
+  // 4. Registrar eventos globales de coordinación
   _registerGlobalEvents();
 }
 

@@ -3,6 +3,19 @@
 Todas las modificaciones notables a este proyecto se documentan en este archivo.
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/).
 
+## [1.5.0] — 2026-10-05
+### Añadido
+* **Fase 3 (UX B2B Municipal y Documental):**
+  * **Matriz de tallas por prenda en lote:** Tabla interactiva por tarjeta con campos numéricos para cada talla (CH, M, G, XG, XXG, 28-40), contador de piezas y subtotal en vivo. Emite eventos desacoplados `product:add` 100% compatibles con `cart.js`.
+  * **Datos del solicitante ampliados:** Captura en el modal de cotización de Municipio/Corporación, Dependencia/Área, Nombre y Cargo del Titular, Teléfono, Correo Oficial, RFC, Domicilio Fiscal y Domicilio de Entrega. Persistencia local con esquema versionado (`ep_b2b_applicant_v2`).
+  * **PDF Institucional Enriquecido:** Tamaño Carta vectorial con membrete, datos completos del solicitante, desglose de partidas AutoTable, vigencia formal de 15 días naturales, tiempos de entrega (21 días hábiles en maquila), condiciones de pago (50/50), garantía de 90 días naturales y leyendas fiscales.
+  * **Carrito persistente y enlace compartible:** Persistencia de borrador de requisición con indicador visual y generador de URL compartible (`?cart=...`) para cotizaciones colaborativas entre áreas municipales.
+  * **Ficha técnica por producto:** Modal accesible e institucional (`#tech-sheet-modal`) con galería, composición, gramaje, refuerzos de confección, colores institucionales y tiempos de entrega.
+  * **Pantalla de éxito interactiva:** Modal de confirmación con folio oficial en tipografía monoespaciada, botón para copiar folio, descarga directa del PDF Carta, estatus del expediente y botón para continuar por WhatsApp con mensaje preformateado.
+  * **Pulido de UX y accesibilidad:** Skeletons de carga animados en el grid de productos mientras conecta con Supabase, botón "Deshacer" (undo) al eliminar ítems en el carrito, trampa de foco y navegación por teclado (Escape) en modales, y filtro por talla en la barra superior.
+  * **Carga diferida (Lazy Loading) de jsPDF:** Eliminación de scripts bloqueantes en `index.html`; carga bajo demanda de `jsPDF` y `AutoTable` únicamente al interactuar con la cotización o descarga documental.
+  * **Migración SQL aditiva:** `supabase/migrations/20261005_fase3_solicitante_orders.sql` para la columna `applicant_info` (JSONB) e índice GIN con rollback documentado.
+
 ---
 
 ## [1.4.0] — 2026-10-05

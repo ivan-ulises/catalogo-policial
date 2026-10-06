@@ -1,12 +1,13 @@
 /**
  * @file components/catalog.js
- * @description Renderizador del catálogo de productos.
+ * @description Renderizador del catálogo de productos B2B con Matriz de Tallas,
+ * Fichas Técnicas Oficiales, filtros avanzados y accesibilidad para Suministros A. R.
  *
  * RESPONSABILIDAD ÚNICA: Tomar un arreglo de Product[] y pintar
- * las tarjetas en el DOM. No contiene lógica de carrito ni de datos.
+ * las tarjetas en el DOM. No contiene lógica de almacenamiento de carrito.
  *
  * CONEXIONES:
- *   ← Recibe datos de: api/googleSheets.js (vía main.js)
+ *   ← Recibe datos de: api/supabaseClient.js (vía main.js)
  *   → Dispara evento:  'product:add' (escuchado por cart.js)
  *   → Usa utilidad:    utils/format.js (formatMXN)
  */
@@ -16,23 +17,30 @@ import { formatMXN } from '../utils/format.js';
 // ─── Selectores del DOM ────────────────────────────────────────
 
 const EL = {
-  loading:  () => document.getElementById('catalog-loading'),
-  error:    () => document.getElementById('catalog-error'),
-  header:   () => document.getElementById('products-header'),
-  count:    () => document.getElementById('products-count'),
-  grid:     () => document.getElementById('products-grid'),
-  filterBar:() => document.getElementById('filter-bar'),
-  searchInput:() => document.getElementById('search-input'),
+  loading:          () => document.getElementById('catalog-loading'),
+  error:            () => document.getElementById('catalog-error'),
+  header:           () => document.getElementById('products-header'),
+  count:            () => document.getElementById('products-count'),
+  grid:             () => document.getElementById('products-grid'),
+  filterBar:        () => document.getElementById('filter-bar'),
+  searchInput:      () => document.getElementById('search-input'),
+  searchClearBtn:   () => document.getElementById('search-clear-btn'),
+  sizeFilterSelect: () => document.getElementById('size-filter-select'),
+  techModal:        () => document.getElementById('tech-sheet-modal'),
 };
 
 // ─── Estado interno ────────────────────────────────────────────
 
-/** @type {import('../api/googleSheets.js').Product[]} */
-let _allProducts  = [];
+/** @type {Array<Object>} */
+let _allProducts        = [];
 /** @type {string} Categoría activa en el filtro */
-let _activeFilter = 'Todos';
+let _activeFilter       = 'Todos';
+/** @type {string} Talla activa en el filtro */
+let _activeSizeFilter   = 'Todas';
 /** @type {string} Búsqueda activa */
-let _searchQuery = '';
+let _searchQuery        = '';
+/** @type {HTMLElement|null} Elemento que activó el modal de ficha técnica para devolver el foco */
+let _lastFocusedElement = null;
 
 // ─── Configuración de colores y Fornitura ─────────────────────
 
@@ -68,7 +76,7 @@ const COLOR_PALETTE_BOTAS = [
  * @returns {{ label: string, css: string }[] | null}
  */
 function getColorOptions(name) {
-  const n = name.toLowerCase();
+  const n = (name || '').toLowerCase();
   if (n.includes('bota')) return COLOR_PALETTE_BOTAS;
   if (
     n.includes('gorra')    ||
@@ -86,67 +94,207 @@ function getColorOptions(name) {
  * @returns {boolean}
  */
 function _isFornitura(name) {
-  return name.toLowerCase().includes('fornitura');
+  return (name || '').toLowerCase().includes('fornitura');
+}
+
+/**
+ * Genera especificaciones técnicas institucionales para la ficha técnica.
+ * @param {Object} p
+ * @returns {Object}
+ */
+function getTechSheetData(p) {
+  const name = (p.name || '').toLowerCase();
+  
+  if (name.includes('playera') || name.includes('polo')) {
+    return {
+      material: 'Tejido tipo Piqué de alta densidad (65% Poliéster / 35% Algodón)',
+      gramaje: '220 g/m² ± 5%',
+      confeccion: 'Cuello y puños tejidos en cárdigan de punto cerrado indeformable. Tapacostura interior de hombro a hombro. Aletilla reforzada con botones al tono.',
+      uso: 'Uniformidad policial operativa y de proximidad social. Transpirable con solidez de color a la luz y lavados industriales continuos.',
+      norma: 'Confección grado seguridad pública según lineamientos SESNSP.'
+    };
+  }
+  
+  if (name.includes('pantalon') || name.includes('pantalón')) {
+    return {
+      material: 'Gabardina Ripstop Antidesgarre (65% Poliéster / 35% Algodón)',
+      gramaje: '240 g/m² con acabado teflonado hidro-repelente',
+      confeccion: 'Doble costura en costados y tiro con hilo de alta tenacidad. Refuerzo de doble tela en rodillas y entrepierna. Bolsillos cargo con fuelle y solapa.',
+      uso: 'Operaciones tácticas y patrullaje de alta exigencia física. Resistente a fricción, desgarre y condiciones climáticas adversas.',
+      norma: 'Diseñado bajo estándares de equipamiento táctico municipal.'
+    };
+  }
+
+  if (name.includes('chamarra')) {
+    return {
+      material: 'Taslan Softshell bicapa con membrana hidro-repelente y forro térmico capitonado',
+      gramaje: '260 g/m² exterior + guata térmica interior 120 g',
+      confeccion: 'Cierres de uso rudo tipo tractor YKK. Paneles de velcro militar en pecho y mangas para sectores y escudos. Cintura y puños con ajuste hermético.',
+      uso: 'Protección invernal y climas lluviosos para personal de guardia y vialidad. Cortavientos con máxima retención térmica.',
+      norma: 'Especificación táctica para corporaciones policiales.'
+    };
+  }
+
+  if (name.includes('bota')) {
+    return {
+      material: 'Piel genuina flor entera de primera selección combinada con nylon balístico 1000D',
+      gramaje: 'Espesor de piel 1.8 - 2.0 mm',
+      confeccion: 'Suela de caucho vulcanizado antiderrapante resistente a aceites e hidrocarburos. Plantilla ergonómica antibacterial de alta memoria.',
+      uso: 'Jornadas de patrullaje de 12 a 24 horas continuas. Soporte de tobillo y absorción de impacto en pavimento y terreno irregular.',
+      norma: 'Calzado táctico de alto rendimiento para fuerzas de seguridad.'
+    };
+  }
+
+  if (name.includes('fornitura')) {
+    return {
+      material: 'Nylon balístico de grado militar 1680D con ribetes reforzados',
+      gramaje: 'Cinturón rígido de 2 pulgadas de ancho con alma de polímero',
+      confeccion: 'Hebilla de seguridad de 3 puntos de liberación rápida. Módulos y accesorios con broches de presión antioxidantes y pasacintos reforzados.',
+      uso: 'Portación segura de equipo de cargo: gas, esposas, bastón, radio, cargadores y lámpara.',
+      norma: 'Configuración estándar para servicio en patrulla y a pie.'
+    };
+  }
+
+  if (name.includes('gorra')) {
+    return {
+      material: 'Gabardina pesada 100% Algodón o Microfibra con elastano (licra)',
+      gramaje: '260 g/m² estructura de 6 gajos con ojillos bordados',
+      confeccion: 'Visera rígida precurvada con alma plástica indeformable (no cartón). Tafilete interno absorbente de sudor y ajuste posterior velcro/broche.',
+      uso: 'Protección solar y presentación institucional en servicio diario.',
+      norma: 'Apta para bordado institucional frontal y leyendas laterales.'
+    };
+  }
+
+  if (name.includes('lampara') || name.includes('lámpara')) {
+    return {
+      material: 'Aleación de aluminio aeroespacial anodizado grado militar tipo III',
+      gramaje: 'Cuerpo estanco resistente a impactos desde 1.5 metros (IPX6)',
+      confeccion: 'LED CREE de alta intensidad con lente de policarbonato antirrayaduras. Circuito de control de voltaje con modos Alto, Bajo y Estrobo.',
+      uso: 'Operaciones nocturnas, filtros de revisión y búsqueda táctica.',
+      norma: 'Autonomía prolongada con batería recargable de alta capacidad.'
+    };
+  }
+
+  if (name.includes('baston') || name.includes('bastón')) {
+    return {
+      material: 'Acero templado al carbono sin costuras o Policarbonato de alto impacto PR-24',
+      gramaje: 'Tratamiento térmico endurecido antioxidante negro mate',
+      confeccion: 'Empuñadura de caucho texturizado antideslizante con tope de retención y funda de porte de liberación rápida.',
+      uso: 'Uso de la fuerza legítima no letal, contención y defensa personal policial.',
+      norma: 'Estándar homologado para corporaciones policiales municipales.'
+    };
+  }
+
+  return {
+    material: 'Materiales industriales y tácticos certificados de uso rudo para corporaciones públicas.',
+    gramaje: 'Especificación de alta durabilidad para servicio policial continuo.',
+    confeccion: 'Ensamblado con hilos de alta tenacidad, costuras reforzadas y pruebas de resistencia mecánica.',
+    uso: 'Equipamiento municipal institucional.',
+    norma: 'Cumple requerimientos de compras públicas FORTAMUN.'
+  };
 }
 
 // ─── API pública ───────────────────────────────────────────────
 
 /**
  * Inicializa el catálogo con los productos y renderiza la vista.
- * @param {import('../api/googleSheets.js').Product[]} products
+ * @param {Array<Object>} products
  */
 export function initCatalog(products) {
   _allProducts = products;
   _hideLoading();
-  _initSearch(); // Bind search listener
+  _initFiltersAndSearch();
   _renderFilterBar();
   _renderFiltered();
+  _initTechModalListeners();
 }
 
-function _initSearch() {
+/**
+ * Vincula la búsqueda, el selector de tallas y el botón de limpiar búsqueda.
+ * @private
+ */
+function _initFiltersAndSearch() {
   const input = EL.searchInput();
-  if (!input) return;
-  // Use clone to remove potential existing listeners
-  const newInst = input.cloneNode(true);
-  input.parentNode.replaceChild(newInst, input);
-  
-  newInst.addEventListener('input', (e) => {
-    _searchQuery = e.target.value.trim().toLowerCase();
-    _renderFiltered();
-  });
+  const clearBtn = EL.searchClearBtn();
+  const sizeSelect = EL.sizeFilterSelect();
+
+  if (input) {
+    const newInst = input.cloneNode(true);
+    input.parentNode.replaceChild(newInst, input);
+    
+    newInst.addEventListener('input', (e) => {
+      _searchQuery = e.target.value.trim().toLowerCase();
+      if (clearBtn) {
+        if (_searchQuery) {
+          clearBtn.classList.remove('hidden');
+        } else {
+          clearBtn.classList.add('hidden');
+        }
+      }
+      _renderFiltered();
+    });
+  }
+
+  if (clearBtn) {
+    clearBtn.addEventListener('click', () => {
+      const inp = EL.searchInput();
+      if (inp) inp.value = '';
+      _searchQuery = '';
+      clearBtn.classList.add('hidden');
+      _renderFiltered();
+    });
+  }
+
+  if (sizeSelect) {
+    sizeSelect.addEventListener('change', (e) => {
+      _activeSizeFilter = e.target.value;
+      _renderFiltered();
+    });
+  }
 }
 
+/**
+ * Filtra los productos según categoría activa, texto de búsqueda y talla seleccionada.
+ * @private
+ */
 function _renderFiltered() {
   let filtered = _allProducts;
+
   if (_activeFilter !== 'Todos') {
     filtered = filtered.filter(p => p.partida === _activeFilter);
   }
+
+  if (_activeSizeFilter !== 'Todas') {
+    filtered = filtered.filter(p => {
+      if (!p.sizes || p.sizes.length === 0) return false;
+      return p.sizes.some(s => s.toLowerCase() === _activeSizeFilter.toLowerCase());
+    });
+  }
+
   if (_searchQuery) {
     filtered = filtered.filter(p => 
-      p.name.toLowerCase().includes(_searchQuery) || 
+      (p.name && p.name.toLowerCase().includes(_searchQuery)) || 
       (p.sku && p.sku.toLowerCase().includes(_searchQuery)) ||
       (p.description && p.description.toLowerCase().includes(_searchQuery))
     );
   }
+
   _renderGrid(filtered);
 }
 
 /**
  * Muestra el estado de error con un mensaje amigable.
- * Lo llama main.js si el fetch al Sheet falla.
- *
  * @param {string} message - Descripción del error para el usuario.
  */
 export function renderError(message) {
   _hideLoading();
   const el = EL.error();
+  if (!el) return;
   el.classList.remove('hidden');
   el.innerHTML = `
     <div class="flex flex-col items-center justify-center py-20 px-6 text-center max-w-lg mx-auto">
-      <!-- Ícono de advertencia -->
       <div class="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mb-5">
-        <svg class="w-10 h-10 text-red-400" fill="none" stroke="currentColor"
-             stroke-width="1.5" viewBox="0 0 24 24">
+        <svg class="w-10 h-10 text-red-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round"
                 d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71
                    c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898
@@ -161,76 +309,55 @@ export function renderError(message) {
         ${_escapeHTML(message)}
       </p>
       <p class="text-gray-400 text-xs mt-3 mb-6">
-        Si el problema persiste, verifica que el Google Sheet esté publicado como CSV
-        y que tengas conexión a internet.
+        Verifica tu conexión a internet o intenta recargar el catálogo.
       </p>
 
-      <!-- Botón para reintentar -->
-      <button
-        id="btn-retry"
-        class="bg-navy hover:bg-navy-light text-gold font-display font-bold
-               px-6 py-2.5 rounded-xl tracking-wide transition-colors"
-      >
+      <button id="btn-retry"
+              class="bg-navy hover:bg-navy-light text-gold font-display font-bold
+                     px-6 py-2.5 rounded-xl tracking-wide transition-colors">
         Reintentar
-      </button>
-
-      <!-- Opción de cargar demo -->
-      <button
-        id="btn-load-demo"
-        class="mt-3 text-sm text-gray-400 hover:text-navy underline transition-colors"
-      >
-        Cargar catálogo de demostración
       </button>
     </div>
   `;
 
-  // El botón "Reintentar" recarga la página
   document.getElementById('btn-retry')?.addEventListener('click', () => location.reload());
-
-  // "Cargar demo" dispara un evento para que main.js lo maneje
-  document.getElementById('btn-load-demo')?.addEventListener('click', () => {
-    document.dispatchEvent(new CustomEvent('catalog:loadDemo'));
-  });
 }
 
 // ─── Renderizado interno ───────────────────────────────────────
 
 /**
- * Renderiza la barra de filtros.
- * Agrupa por `partida` (referencia SUMINISTROS A. R.).
- * El botón "Todos" siempre aparece primero.
+ * Renderiza la barra de filtros por categoría.
  * @private
  */
 function _renderFilterBar() {
-  // Genera etiquetas únicas de partida para los botones de filtro
   const partidas = ['Todos', ...new Set(_allProducts.map(p => p.partida).filter(Boolean))];
   const bar = EL.filterBar();
+  if (!bar) return;
 
   bar.innerHTML = partidas.map(partida => `
     <button
       data-filter="${_escapeAttr(partida)}"
-      class="filter-btn flex-shrink-0 font-display tracking-wide text-sm px-4 py-1.5
-             rounded-full border transition-colors ${
+      class="filter-btn flex-shrink-0 font-display tracking-wide text-xs sm:text-sm px-4 py-1.5
+             rounded-full border transition-all duration-150 ${
                partida === _activeFilter
-                 ? 'bg-navy text-gold border-navy'
+                 ? 'bg-navy text-gold border-navy shadow-sm'
                  : 'bg-white text-gray-600 border-gray-300 hover:border-navy hover:text-navy'
              }"
     >${_escapeHTML(partida)}</button>
   `).join('');
 
-  // Usamos onclick para no acumular listeners
   bar.onclick = (e) => {
     const btn = e.target.closest('.filter-btn');
     if (!btn) return;
     _activeFilter = btn.dataset.filter;
-    _renderFilterBar(); // re-renderiza para actualizar clases activas
+    _renderFilterBar();
     _renderFiltered();
   };
 }
 
 /**
  * Renderiza la cuadrícula de tarjetas de productos.
- * @param {import('../api/googleSheets.js').Product[]} products
+ * @param {Array<Object>} products
  * @private
  */
 function _renderGrid(products) {
@@ -238,16 +365,48 @@ function _renderGrid(products) {
   const count  = EL.count();
   const grid   = EL.grid();
 
-  header.classList.remove('hidden');
-  header.classList.add('flex');
-  count.textContent = `${products.length} producto${products.length !== 1 ? 's' : ''}`;
+  if (!grid) return;
+
+  if (header) {
+    header.classList.remove('hidden');
+    header.classList.add('flex');
+  }
+  if (count) {
+    count.textContent = `${products.length} producto${products.length !== 1 ? 's' : ''}`;
+  }
 
   if (products.length === 0) {
     grid.innerHTML = `
-      <div class="col-span-full text-center py-16 text-gray-400">
-        <p class="font-display text-xl tracking-wide">Sin productos en esta categoría.</p>
+      <div class="col-span-full bg-white rounded-2xl border border-gray-200 p-12 text-center my-6 shadow-sm">
+        <svg class="w-16 h-16 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+        </svg>
+        <h3 class="font-display text-2xl font-bold text-navy tracking-wide mb-1">
+          Sin productos encontrados
+        </h3>
+        <p class="text-sm text-gray-500 max-w-md mx-auto mb-6">
+          No hay artículos que coincidan con la categoría, talla o búsqueda actual.
+        </p>
+        <button id="btn-reset-filters"
+                class="bg-navy hover:bg-navy-light text-gold text-xs font-display font-bold px-6 py-2.5 rounded-xl transition-all shadow">
+          Restablecer Filtros
+        </button>
       </div>
     `;
+
+    document.getElementById('btn-reset-filters')?.addEventListener('click', () => {
+      _activeFilter = 'Todos';
+      _activeSizeFilter = 'Todas';
+      _searchQuery = '';
+      const inp = EL.searchInput();
+      if (inp) inp.value = '';
+      const sizeSel = EL.sizeFilterSelect();
+      if (sizeSel) sizeSel.value = 'Todas';
+      const clr = EL.searchClearBtn();
+      if (clr) clr.classList.add('hidden');
+      _renderFilterBar();
+      _renderFiltered();
+    });
     return;
   }
 
@@ -255,17 +414,68 @@ function _renderGrid(products) {
     .map((product, index) => _buildCardHTML(product, index))
     .join('');
 
-  // Delegación de eventos: captura clics en "Añadir" y en color swatches
-  grid.addEventListener('click', _handleGridClick);
+  // Remover listeners previos duplicados reasignando handlers directos o con delegación limpia
+  grid.onclick = _handleGridClick;
+  grid.onchange = _handleVariantChange;
+  grid.oninput = _handleGridInput;
+}
 
-  // Listener para cambio de precio al elegir variante
-  grid.addEventListener('change', _handleVariantChange);
+/**
+ * Maneja los inputs directos en la tarjeta (slots de fornitura o matriz de tallas).
+ * @param {Event} e
+ * @private
+ */
+function _handleGridInput(e) {
+  // 1. Input de compartimientos Fornitura
+  if (e.target.closest('.slot-input')) {
+    _handleSlotInput(e);
+  }
 
-  // Listener para input de compartimientos (Fornitura)
-  grid.addEventListener('input', _handleSlotInput);
+  // 2. Input de cantidades en la matriz de tallas
+  if (e.target.closest('.matrix-qty-input')) {
+    const input = e.target.closest('.matrix-qty-input');
+    const productId = input.dataset.productId;
+    _recalculateMatrixCard(productId);
+  }
+}
 
-  // Listener para navegación de la galería (flechas)
-  grid.addEventListener('click', _handleSliderNav);
+/**
+ * Recalcula el total de piezas y el subtotal en vivo de la matriz de tallas de una tarjeta.
+ * @param {string} productId
+ * @private
+ */
+function _recalculateMatrixCard(productId) {
+  const card = document.querySelector(`[data-card-id="${productId}"]`);
+  if (!card) return;
+
+  const product = _allProducts.find(p => p.id === productId);
+  if (!product) return;
+
+  // Determinar precio base a considerar (incluyendo variante si está seleccionada)
+  const variantSelect = card.querySelector(`#variant-${productId}`);
+  let currentPrice = product.price;
+  if (variantSelect && product.variants) {
+    const selectedVariant = variantSelect.value;
+    const vObj = product.variants.find(v => v.label === selectedVariant);
+    if (vObj) currentPrice = vObj.price;
+  }
+
+  const inputs = card.querySelectorAll(`.matrix-qty-input[data-product-id="${productId}"]`);
+  let totalQty = 0;
+  inputs.forEach(inp => {
+    const val = parseInt(inp.value, 10);
+    if (!isNaN(val) && val > 0) {
+      totalQty += val;
+    }
+  });
+
+  const subtotal = totalQty * currentPrice;
+
+  const qtyEl = card.querySelector(`.matrix-total-qty-${productId}`);
+  const subtotalEl = card.querySelector(`.matrix-subtotal-${productId}`);
+
+  if (qtyEl) qtyEl.textContent = String(totalQty);
+  if (subtotalEl) subtotalEl.textContent = formatMXN(subtotal);
 }
 
 /**
@@ -305,7 +515,6 @@ function _handleVariantChange(e) {
   const newPrice = parseFloat(selectedOption.dataset.price);
 
   if (priceDisplay && !isNaN(newPrice)) {
-    // Animación de cambio de precio
     priceDisplay.style.transform = 'scale(0.95)';
     priceDisplay.style.opacity = '0.5';
 
@@ -314,6 +523,12 @@ function _handleVariantChange(e) {
       priceDisplay.style.transform = 'scale(1)';
       priceDisplay.style.opacity = '1';
     }, 150);
+  }
+
+  // Si tiene matriz de tallas desplegada, recalcular
+  const productId = card?.dataset.cardId;
+  if (productId) {
+    _recalculateMatrixCard(productId);
   }
 }
 
@@ -355,29 +570,172 @@ function _handleSlotInput(e) {
 }
 
 /**
- * Maneja el clic en el grid (delegación de eventos).
+ * Maneja el clic en el grid (delegación centralizada).
  * @param {MouseEvent} e
  * @private
  */
 function _handleGridClick(e) {
-  // Captura de clic en los círculos de color
+  // 1. Flechas de slider
+  if (e.target.closest('.slider-nav')) {
+    _handleSliderNav(e);
+    return;
+  }
+
+  // 2. Clic en los círculos de color
   const colorBtn = e.target.closest('.color-swatch');
   if (colorBtn) {
     const card = colorBtn.closest('[data-card-id]');
-    // Deseleccionar todos los del mismo grupo
     card?.querySelectorAll('.color-swatch').forEach(b => {
       b.classList.remove('ring-2', 'ring-offset-1', 'ring-gold');
       b.removeAttribute('aria-pressed');
     });
-    // Seleccionar el clicado
     colorBtn.classList.add('ring-2', 'ring-offset-1', 'ring-gold');
     colorBtn.setAttribute('aria-pressed', 'true');
     return;
   }
 
-  const btn = e.target.closest('.btn-add-product');
-  if (!btn) return;
+  // 3. Abrir Ficha Técnica Oficial
+  const techBtn = e.target.closest('.btn-open-tech-sheet');
+  if (techBtn) {
+    const productId = techBtn.dataset.productId;
+    const product = _allProducts.find(p => p.id === productId);
+    if (product) {
+      _lastFocusedElement = techBtn;
+      _openTechSheetModal(product);
+    }
+    return;
+  }
 
+  // 4. Toggle de la Matriz de Tallas por Lote
+  const toggleMatrixBtn = e.target.closest('.btn-toggle-matrix');
+  if (toggleMatrixBtn) {
+    const productId = toggleMatrixBtn.dataset.productId;
+    const container = document.getElementById(`matrix-container-${productId}`);
+    const chevron = toggleMatrixBtn.querySelector('.matrix-chevron');
+    if (container) {
+      const isHidden = container.classList.contains('hidden');
+      if (isHidden) {
+        container.classList.remove('hidden');
+        if (chevron) chevron.textContent = '▲ Ocultar matriz';
+        _recalculateMatrixCard(productId);
+      } else {
+        container.classList.add('hidden');
+        if (chevron) chevron.textContent = '▼ Desplegar matriz';
+      }
+    }
+    return;
+  }
+
+  // 5. Botones +/- dentro de la Matriz de Tallas
+  const matrixStepBtn = e.target.closest('.matrix-step-btn');
+  if (matrixStepBtn) {
+    const delta = parseInt(matrixStepBtn.dataset.delta, 10) || 0;
+    const input = matrixStepBtn.parentElement?.querySelector('.matrix-qty-input');
+    if (input) {
+      const curr = parseInt(input.value, 10) || 0;
+      input.value = Math.max(0, Math.min(999, curr + delta));
+      _recalculateMatrixCard(input.dataset.productId);
+    }
+    return;
+  }
+
+  // 6. Añadir Lote desde la Matriz de Tallas
+  const addMatrixBtn = e.target.closest('.btn-add-matrix');
+  if (addMatrixBtn) {
+    _handleAddMatrix(addMatrixBtn);
+    return;
+  }
+
+  // 7. Botón regular "AÑADIR A LA LISTA" (individual)
+  const btn = e.target.closest('.btn-add-product');
+  if (btn) {
+    _handleAddSingleProduct(btn);
+    return;
+  }
+}
+
+/**
+ * Procesa la adición masiva de un lote desde la matriz de tallas.
+ * @param {HTMLElement} btn
+ * @private
+ */
+function _handleAddMatrix(btn) {
+  const productId = btn.dataset.productId;
+  const card = btn.closest('[data-card-id]');
+  const product = _allProducts.find(p => p.id === productId);
+  if (!product || !card) return;
+
+  // Validar color si aplica
+  const colorOptions = getColorOptions(product.name);
+  const selectedColorBtn = card.querySelector('.color-swatch[aria-pressed="true"]');
+  if (colorOptions && !selectedColorBtn) {
+    document.dispatchEvent(new CustomEvent('ui:toast', { detail: { msg: '⚠ Selecciona un color antes de añadir el lote' } }));
+    const swatchArea = card.querySelector('.color-swatches-area');
+    if (swatchArea) {
+      swatchArea.classList.add('ring-2', 'ring-red-400', 'rounded-lg', 'p-1');
+      setTimeout(() => swatchArea.classList.remove('ring-2', 'ring-red-400', 'rounded-lg', 'p-1'), 2500);
+    }
+    return;
+  }
+  const selectedColor = selectedColorBtn?.dataset.colorLabel || '';
+
+  // Determinar precio según variante
+  const variantSelect = card.querySelector(`#variant-${productId}`);
+  const selectedVariant = variantSelect ? variantSelect.value : null;
+  let finalPrice = product.price;
+  if (selectedVariant && product.variants) {
+    const vObj = product.variants.find(v => v.label === selectedVariant);
+    if (vObj) finalPrice = vObj.price;
+  }
+
+  // Recolectar tallas con cantidad > 0
+  const inputs = card.querySelectorAll(`.matrix-qty-input[data-product-id="${productId}"]`);
+  let totalAdded = 0;
+  const batches = [];
+
+  inputs.forEach(inp => {
+    const qty = parseInt(inp.value, 10);
+    if (!isNaN(qty) && qty > 0) {
+      batches.push({ size: inp.dataset.size, qty });
+      totalAdded += qty;
+    }
+  });
+
+  if (batches.length === 0) {
+    document.dispatchEvent(new CustomEvent('ui:toast', { detail: { msg: '⚠ Ingresa al menos una pieza en la matriz' } }));
+    return;
+  }
+
+  // Disparar evento para cada talla seleccionada (retrocompatible con cart.js)
+  batches.forEach(b => {
+    document.dispatchEvent(new CustomEvent('product:add', {
+      detail: {
+        product,
+        size: b.size,
+        qty: b.qty,
+        variant: selectedVariant,
+        customPrice: finalPrice,
+        color: selectedColor,
+        slotInfo: ''
+      }
+    }));
+  });
+
+  // Limpiar inputs de la matriz
+  inputs.forEach(inp => { inp.value = 0; });
+  _recalculateMatrixCard(productId);
+
+  document.dispatchEvent(new CustomEvent('ui:toast', {
+    detail: { msg: `✓ Lote agregado: ${totalAdded} piezas (${product.name})` }
+  }));
+}
+
+/**
+ * Añade un producto individual (flujo estándar).
+ * @param {HTMLElement} btn
+ * @private
+ */
+function _handleAddSingleProduct(btn) {
   const productId = btn.dataset.productId;
   const card      = btn.closest('[data-card-id]');
 
@@ -398,7 +756,6 @@ function _handleGridClick(e) {
   const colorOptions = getColorOptions(product.name);
   if (colorOptions && !selectedColorBtn) {
     document.dispatchEvent(new CustomEvent('ui:toast', { detail: { msg: '⚠ Selecciona un color' } }));
-    // Highlight del contenedor de colores
     const swatchArea = card?.querySelector('.color-swatches-area');
     if (swatchArea) {
       swatchArea.classList.add('ring-2', 'ring-red-400', 'rounded-lg', 'p-1');
@@ -408,14 +765,14 @@ function _handleGridClick(e) {
   }
   const selectedColor = selectedColorBtn?.dataset.colorLabel || '';
 
-  // Determinar el precio final basado en la variante (si existe)
+  // Determinar precio final
   let finalPrice = product.price;
   if (selectedVariant && product.variants) {
     const vObj = product.variants.find(v => v.label === selectedVariant);
     if (vObj) finalPrice = vObj.price;
   }
 
-  // Calcular precio de Fornitura con compartimientos extra
+  // Compartimientos Fornitura
   let slotInfo = '';
   if (_isFornitura(product.name) && slotInput) {
     const totalSlots = parseInt(slotInput.value) || BASE_COMPARTIMIENTOS;
@@ -427,7 +784,7 @@ function _handleGridClick(e) {
       : `${totalSlots} compartimientos (+${extraSlots} extra)`;
   }
 
-  // Validar selección de talla
+  // Validar selección de talla si tiene varias
   if (product.sizes.length > 1 && !selectedSize) {
     _markInvalid(sizeSelect, 'Selecciona una talla');
     return;
@@ -446,7 +803,7 @@ function _handleGridClick(e) {
     },
   }));
 
-  // Reset visual del input de cantidad y color
+  // Reset visual de inputs
   if (qtyInput) qtyInput.value = 1;
   card?.querySelectorAll('.color-swatch').forEach(b => {
     b.classList.remove('ring-2', 'ring-offset-1', 'ring-gold');
@@ -456,11 +813,10 @@ function _handleGridClick(e) {
 }
 
 /**
- * Genera el HTML de una tarjeta de producto.
- *
- * @param {import('../api/googleSheets.js').Product} p
- * @param {number} index - Para el delay de animación escalonada
- * @returns {string} HTML de la tarjeta
+ * Genera el HTML de una tarjeta de producto con soporte para Matriz de Tallas y Ficha Técnica.
+ * @param {Object} p
+ * @param {number} index
+ * @returns {string}
  * @private
  */
 function _buildCardHTML(p, index) {
@@ -472,8 +828,8 @@ function _buildCardHTML(p, index) {
   return `
     <article
       class="product-card bg-white rounded-2xl overflow-hidden shadow-md border border-gray-100
-             fade-up flex flex-col"
-      style="animation-delay:${index * 0.055}s"
+             fade-up flex flex-col transition-all hover:shadow-lg"
+      style="animation-delay:${index * 0.05}s"
       data-card-id="${_escapeAttr(p.id)}"
       aria-label="Bien: ${_escapeAttr(p.name)}"
     >
@@ -503,7 +859,6 @@ function _buildCardHTML(p, index) {
             </div>
 
             ${hasMultiple ? `
-              <!-- Flechas de Navegación (Desktop) -->
               <button class="slider-nav prev" data-dir="prev" aria-label="Anterior">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
                   <path d="M15 18l-6-6 6-6" stroke-linecap="round" stroke-linejoin="round"/>
@@ -514,24 +869,22 @@ function _buildCardHTML(p, index) {
                   <path d="M9 18l6-6-6-6" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
               </button>
-
-              <div class="slider-dots">
-                ${p.imageUrls.map((_, i) => `<span class="dot" data-index="${i}"></span>`).join('')}
-              </div>
             ` : ''}
           `;
         })()}
-        <!-- Badge de referencia SUMINISTROS A. R. -->
-        <span class="absolute top-3 left-3 bg-gold/90 text-navy text-xs font-bold
-                     font-display px-2.5 py-0.5 rounded-full tracking-wider z-10"
-              title="Referencia de catálogo SUMINISTROS A. R.">
-          ${_escapeHTML(p.partida || '—')}
+
+        <!-- Badge de Partida FORTAMUN -->
+        <span class="absolute top-3 left-3 bg-navy/90 text-gold text-xs font-bold
+                     font-display px-2.5 py-0.5 rounded-full tracking-wider z-10 border border-gold/30"
+              title="Partida de catálogo">
+          ${_escapeHTML(p.partida || 'PARTIDA')}
         </span>
+
         <!-- SKU / Folio -->
-        <span class="absolute bottom-2 right-2 bg-black/40 text-white/70 text-xs
+        <span class="absolute bottom-2 right-2 bg-black/50 text-white/80 text-xs
                      font-mono px-2 py-0.5 rounded"
-              title="Folio interno">
-          ${_escapeHTML(p.sku)}
+              title="Folio o SKU interno">
+          ${_escapeHTML(p.sku || p.id)}
         </span>
       </div>
 
@@ -540,7 +893,7 @@ function _buildCardHTML(p, index) {
         <h3 class="font-display text-base font-bold text-navy tracking-wide leading-tight mb-1">
           ${_escapeHTML(p.name)}
         </h3>
-        <p class="text-xs text-gray-500 leading-snug mb-3 flex-1">
+        <p class="text-xs text-gray-500 leading-snug mb-3 flex-1 line-clamp-2">
           ${_escapeHTML(p.description)}
         </p>
 
@@ -551,11 +904,11 @@ function _buildCardHTML(p, index) {
               ${formatMXN(p.price)}
             </span>
             <span class="text-xs text-gray-400 uppercase tracking-wide">
-              / ${_escapeHTML(p.unitLabel || 'PIEZA')}
+              / ${_escapeHTML(p.unit || 'PIEZA')}
             </span>
           </div>
           <span class="text-[10px] text-gold-dark font-bold uppercase tracking-widest mt-0.5">
-            IVA Incluido
+            IVA Incluido (16%)
           </span>
         </div>
 
@@ -581,7 +934,7 @@ function _buildCardHTML(p, index) {
           </div>
         ` : ''}
 
-        <!-- ── SELECTOR DE COLOR (círculos) ── -->
+        <!-- Selector de Color (círculos) -->
         ${colorOpts ? `
           <div class="mb-3">
             <label class="block text-xs font-semibold text-gray-500 mb-1.5 tracking-wide">
@@ -606,7 +959,7 @@ function _buildCardHTML(p, index) {
           </div>
         ` : ''}
 
-        <!-- ── COMPARTIMIENTOS (solo Fornitura) ── -->
+        <!-- Compartimientos (solo Fornitura) -->
         ${isFornitura ? `
           <div class="mb-3 bg-amber-50 border border-amber-200 rounded-xl p-3">
             <label class="block text-xs font-semibold text-amber-700 mb-1.5 tracking-wide">
@@ -660,12 +1013,12 @@ function _buildCardHTML(p, index) {
           </div>
         ` : ''}
 
-        <!-- Selector de talla (solo si hay más de una opción o no es Única) -->
+        <!-- Selector de talla individual (si tiene varias) -->
         ${hasSizes ? `
           <div class="mb-3">
             <label for="size-${_escapeAttr(p.id)}"
                    class="block text-xs font-semibold text-gray-500 mb-1 tracking-wide">
-              TALLA / MEDIDA:
+              TALLA INDIVIDUAL:
             </label>
             <select
               id="size-${_escapeAttr(p.id)}"
@@ -673,14 +1026,14 @@ function _buildCardHTML(p, index) {
                      bg-white focus:outline-none focus:ring-2 focus:ring-gold/40 focus:border-gold
                      transition-colors"
             >
-              <option value="">Seleccionar…</option>
+              <option value="">Seleccionar talla…</option>
               ${p.sizes.map(s => `<option value="${_escapeAttr(s)}">${_escapeHTML(s)}</option>`).join('')}
             </select>
           </div>
         ` : ''}
 
-        <!-- Control de cantidad -->
-        <div class="mb-4 flex items-center gap-2">
+        <!-- Control de cantidad unitaria -->
+        <div class="mb-3 flex items-center gap-2">
           <span class="text-xs font-semibold text-gray-500 tracking-wide">CANT:</span>
           <div class="flex items-center border border-gray-300 rounded-lg overflow-hidden">
             <button
@@ -714,39 +1067,360 @@ function _buildCardHTML(p, index) {
           </div>
         </div>
 
-        <!-- Botón de añadir -->
+        <!-- Botón de añadir individual -->
         <button
           type="button"
           class="btn-add-product bg-gold hover:bg-gold-hover text-navy font-display font-bold
                  w-full py-2.5 rounded-xl text-sm flex items-center justify-center gap-2
-                 shadow transition-all duration-150 hover:scale-[1.02] active:scale-[0.98]
+                 shadow transition-all duration-150 hover:scale-[1.01] active:scale-[0.99]
                  tracking-wide"
           data-product-id="${_escapeAttr(p.id)}"
-          aria-label="Añadir ${_escapeAttr(p.name)} a la lista"
+          aria-label="Añadir ${_escapeAttr(p.name)} al pedido"
         >
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5"
-               viewBox="0 0 24 24">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
           </svg>
           AÑADIR A LA LISTA
+        </button>
+
+        <!-- ════════════════════════════════════════════════════
+             MATRIZ DE TALLAS POR LOTE (Requisito 1 de Fase 3)
+             ════════════════════════════════════════════════════ -->
+        ${hasSizes ? `
+          <div class="mt-3 pt-2.5 border-t border-gray-100">
+            <button
+              type="button"
+              class="btn-toggle-matrix text-xs font-bold text-navy hover:text-gold-dark flex items-center justify-between w-full py-1 group transition-colors"
+              data-product-id="${_escapeAttr(p.id)}"
+              aria-expanded="false"
+            >
+              <span class="flex items-center gap-1.5 text-navy group-hover:text-gold-dark font-display tracking-wide text-xs uppercase">
+                <svg class="w-3.5 h-3.5 text-gold-dark" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/>
+                </svg>
+                Matriz de Tallas por Lote
+              </span>
+              <span class="matrix-chevron text-[11px] text-gray-500 font-normal">▼ Desplegar</span>
+            </button>
+
+            <div id="matrix-container-${_escapeAttr(p.id)}"
+                 class="matrix-container hidden mt-2 bg-slate-50 border border-slate-200 rounded-xl p-3 shadow-inner">
+              <p class="text-[11px] text-gray-500 mb-2 font-medium">
+                Especifica la cantidad de piezas deseadas para cada talla:
+              </p>
+              
+              <div class="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                ${p.sizes.map(s => `
+                  <div class="bg-white border border-gray-200 rounded-lg p-1.5 text-center shadow-xs">
+                    <span class="block text-xs font-bold text-navy truncate" title="${_escapeAttr(s)}">
+                      ${_escapeHTML(s)}
+                    </span>
+                    <div class="flex items-center justify-between mt-1 border border-gray-200 rounded bg-gray-50">
+                      <button type="button" class="matrix-step-btn px-1.5 py-0.5 text-xs font-bold text-gray-500 hover:text-navy hover:bg-gray-200 transition-colors select-none" data-delta="-1" aria-label="Reducir talla ${_escapeAttr(s)}">−</button>
+                      <input
+                        type="number"
+                        min="0"
+                        max="999"
+                        value="0"
+                        class="matrix-qty-input w-8 text-center text-xs font-bold py-0.5 border-0 bg-transparent text-navy focus:outline-none"
+                        data-size="${_escapeAttr(s)}"
+                        data-product-id="${_escapeAttr(p.id)}"
+                        aria-label="Cantidad para talla ${_escapeAttr(s)}"
+                      />
+                      <button type="button" class="matrix-step-btn px-1.5 py-0.5 text-xs font-bold text-gray-500 hover:text-navy hover:bg-gray-200 transition-colors select-none" data-delta="1" aria-label="Aumentar talla ${_escapeAttr(s)}">+</button>
+                    </div>
+                  </div>
+                `).join('')}
+              </div>
+
+              <!-- Resumen dinámico en vivo -->
+              <div class="mt-3 pt-2 border-t border-slate-200 flex items-center justify-between text-xs">
+                <span class="text-gray-600">Piezas lote: <strong class="matrix-total-qty-${_escapeAttr(p.id)} text-navy font-bold">0</strong></span>
+                <span class="text-gray-600">Subtotal: <strong class="matrix-subtotal-${_escapeAttr(p.id)} text-navy font-bold">${formatMXN(0)}</strong></span>
+              </div>
+
+              <button
+                type="button"
+                class="btn-add-matrix mt-2.5 w-full bg-navy hover:bg-navy-light text-gold text-xs font-display font-bold py-2 rounded-lg transition-all flex items-center justify-center gap-1.5 shadow"
+                data-product-id="${_escapeAttr(p.id)}"
+              >
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+                </svg>
+                AÑADIR LOTE AL PEDIDO
+              </button>
+            </div>
+          </div>
+        ` : ''}
+
+        <!-- ════════════════════════════════════════════════════
+             BOTÓN DE FICHA TÉCNICA OFICIAL (Requisito 5 de Fase 3)
+             ════════════════════════════════════════════════════ -->
+        <button
+          type="button"
+          class="btn-open-tech-sheet w-full py-1.5 mt-2.5 text-xs font-medium text-slate-soft hover:text-navy hover:bg-gray-100 rounded-lg transition-colors flex items-center justify-center gap-1.5 border border-dashed border-gray-300"
+          data-product-id="${_escapeAttr(p.id)}"
+        >
+          <svg class="w-3.5 h-3.5 text-gold-dark" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+          </svg>
+          Ficha Técnica Oficial
         </button>
       </div>
     </article>
   `;
 }
 
+// ─── Modal de Ficha Técnica Oficial (Accesible con Trampa de Foco) ───
+
+function _initTechModalListeners() {
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      const modal = EL.techModal();
+      if (modal && !modal.classList.contains('hidden')) {
+        _closeTechSheetModal();
+      }
+    }
+  });
+}
+
+function _openTechSheetModal(product) {
+  const modal = EL.techModal();
+  if (!modal) return;
+
+  const tech = getTechSheetData(product);
+  const colorOpts = getColorOptions(product.name);
+  const hasMultipleImages = product.imageUrls && product.imageUrls.length > 1;
+
+  modal.innerHTML = `
+    <div class="bg-white max-w-4xl mx-auto rounded-2xl shadow-2xl overflow-hidden border border-gray-200 relative animate-in fade-in zoom-in-95 duration-150"
+         id="tech-modal-card"
+         role="document">
+
+      <!-- Header del Modal -->
+      <div class="bg-gradient-to-r from-navy via-navy-light to-navy-border px-6 py-4 flex items-center justify-between text-white border-b border-gold/20">
+        <div class="flex items-center gap-3">
+          <div class="bg-gold/15 p-2 rounded-xl text-gold">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round"
+                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+            </svg>
+          </div>
+          <div>
+            <h2 class="font-display text-xl font-bold text-gold tracking-wide uppercase leading-tight">
+              FICHA TÉCNICA INSTITUCIONAL
+            </h2>
+            <p class="text-xs text-slate-soft">Suministros A. R. · Proveedor Homologado de Seguridad Pública</p>
+          </div>
+        </div>
+        <button id="btn-close-tech-modal"
+                class="text-slate-soft hover:text-gold p-2 rounded-lg transition-colors"
+                aria-label="Cerrar ficha técnica">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Contenido en dos columnas -->
+      <div class="p-6 grid grid-cols-1 md:grid-cols-12 gap-6 max-h-[80vh] overflow-y-auto">
+        
+        <!-- Columna Izquierda: Galería e Imagen (5 cols) -->
+        <div class="md:col-span-5 flex flex-col gap-3">
+          <div class="relative h-64 sm:h-72 bg-gray-100 rounded-xl overflow-hidden border border-gray-200">
+            <img id="tech-modal-main-img"
+                 src="${product.imageUrls && product.imageUrls[0] ? product.imageUrls[0] : ''}"
+                 alt="${_escapeAttr(product.name)}"
+                 class="w-full h-full object-cover"
+                 onerror="this.style.display='none'; this.parentElement.innerHTML='<div class=\\'w-full h-full flex items-center justify-center text-gray-400 font-bold\\'>Imagen Institucional</div>'"/>
+            <span class="absolute top-2 left-2 bg-navy text-gold text-xs font-bold px-2.5 py-0.5 rounded-full font-display border border-gold/20">
+              ${_escapeHTML(product.partida || 'PARTIDA')}
+            </span>
+          </div>
+
+          <!-- Thumbnails interactivos si hay múltiples fotos -->
+          ${hasMultipleImages ? `
+            <div class="flex gap-2 overflow-x-auto pb-1">
+              ${product.imageUrls.map((url, idx) => `
+                <button type="button"
+                        class="tech-thumb-btn w-14 h-14 rounded-lg overflow-hidden border-2 transition-all flex-shrink-0 ${idx === 0 ? 'border-gold' : 'border-gray-200 hover:border-gray-400'}"
+                        data-img-src="${_escapeAttr(url)}">
+                  <img src="${_escapeAttr(url)}" class="w-full h-full object-cover" alt="Vista miniatura ${idx+1}" />
+                </button>
+              `).join('')}
+            </div>
+          ` : ''}
+
+          <!-- Bloque de Entrega y Garantía -->
+          <div class="bg-blue-50 border border-blue-200 rounded-xl p-3.5 space-y-2 mt-2">
+            <div class="flex items-center gap-2 text-xs font-bold text-navy">
+              <svg class="w-4 h-4 text-blue-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              <span>Tiempo de Entrega: 21 días hábiles</span>
+            </div>
+            <p class="text-[11px] text-gray-600 leading-relaxed">
+              Producción sobre pedido con estricto control de calidad y trazabilidad por lote.
+            </p>
+            <div class="flex items-center gap-2 text-xs font-bold text-navy pt-1 border-t border-blue-100">
+              <svg class="w-4 h-4 text-green-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+              <span>Garantía Institucional: 90 días naturales</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Columna Derecha: Especificaciones y Formulario de Requisición (7 cols) -->
+        <div class="md:col-span-7 flex flex-col justify-between space-y-4">
+          <div>
+            <div class="flex items-baseline justify-between gap-2 border-b border-gray-200 pb-2 mb-3">
+              <div>
+                <h3 class="font-display text-2xl font-bold text-navy tracking-wide leading-tight">
+                  ${_escapeHTML(product.name)}
+                </h3>
+                <span class="text-xs text-gray-400 font-mono">SKU: ${_escapeHTML(product.sku || product.id)}</span>
+              </div>
+              <div class="text-right">
+                <span class="font-display text-2xl font-bold text-navy">
+                  ${formatMXN(product.price)}
+                </span>
+                <span class="block text-[10px] text-gold-dark font-bold uppercase">IVA Incluido</span>
+              </div>
+            </div>
+
+            <p class="text-xs text-gray-600 mb-4 leading-relaxed">
+              ${_escapeHTML(product.description)}
+            </p>
+
+            <!-- Tabla de especificaciones técnicas -->
+            <div class="bg-gray-50 border border-gray-200 rounded-xl overflow-hidden mb-4">
+              <div class="bg-gray-100 px-3.5 py-1.5 border-b border-gray-200 text-xs font-bold text-navy font-display uppercase tracking-wider">
+                Especificaciones de Confección y Materiales
+              </div>
+              <div class="divide-y divide-gray-200 text-xs">
+                <div class="px-3.5 py-2 grid grid-cols-3 gap-2">
+                  <span class="font-bold text-gray-500">Material / Tela:</span>
+                  <span class="col-span-2 text-navy font-medium">${_escapeHTML(tech.material)}</span>
+                </div>
+                <div class="px-3.5 py-2 grid grid-cols-3 gap-2">
+                  <span class="font-bold text-gray-500">Gramaje / Densidad:</span>
+                  <span class="col-span-2 text-navy font-medium">${_escapeHTML(tech.gramaje)}</span>
+                </div>
+                <div class="px-3.5 py-2 grid grid-cols-3 gap-2">
+                  <span class="font-bold text-gray-500">Confección:</span>
+                  <span class="col-span-2 text-navy font-medium">${_escapeHTML(tech.confeccion)}</span>
+                </div>
+                <div class="px-3.5 py-2 grid grid-cols-3 gap-2">
+                  <span class="font-bold text-gray-500">Uso Operativo:</span>
+                  <span class="col-span-2 text-navy font-medium">${_escapeHTML(tech.uso)}</span>
+                </div>
+                <div class="px-3.5 py-2 grid grid-cols-3 gap-2">
+                  <span class="font-bold text-gray-500">Normativa:</span>
+                  <span class="col-span-2 text-navy font-medium">${_escapeHTML(tech.norma)}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Tallas Disponibles -->
+            <div class="mb-4">
+              <span class="block text-xs font-bold text-gray-700 mb-1">Tallas Disponibles:</span>
+              <div class="flex flex-wrap gap-1.5">
+                ${product.sizes.map(s => `
+                  <span class="text-xs bg-navy/10 text-navy font-bold px-2.5 py-1 rounded-md">
+                    ${_escapeHTML(s)}
+                  </span>
+                `).join('')}
+              </div>
+            </div>
+
+            <!-- Colores disponibles si aplica -->
+            ${colorOpts ? `
+              <div class="mb-4">
+                <span class="block text-xs font-bold text-gray-700 mb-1">Colores Institucionales:</span>
+                <div class="flex flex-wrap gap-2 items-center">
+                  ${colorOpts.map(c => `
+                    <div class="flex items-center gap-1.5 bg-gray-100 px-2 py-1 rounded-md border border-gray-200">
+                      <span class="w-3.5 h-3.5 rounded-full border border-gray-300" style="background-color: ${c.css}"></span>
+                      <span class="text-xs font-semibold text-gray-700">${_escapeHTML(c.label)}</span>
+                    </div>
+                  `).join('')}
+                </div>
+              </div>
+            ` : ''}
+          </div>
+
+          <!-- Acciones del Modal -->
+          <div class="pt-3 border-t border-gray-200 flex flex-wrap gap-3 items-center justify-end">
+            <button id="btn-tech-modal-close"
+                    class="px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-xl transition-colors">
+              Cerrar Ficha
+            </button>
+            <button id="btn-tech-modal-scroll"
+                    class="bg-navy hover:bg-navy-light text-gold text-xs font-display font-bold px-5 py-2.5 rounded-xl transition-all shadow flex items-center gap-2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+              Ver en Catálogo y Configurar Tallas
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  `;
+
+  modal.classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+
+  // Vincular cambio de thumbnails
+  modal.querySelectorAll('.tech-thumb-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const mainImg = document.getElementById('tech-modal-main-img');
+      if (mainImg) mainImg.src = btn.dataset.imgSrc;
+      modal.querySelectorAll('.tech-thumb-btn').forEach(b => b.classList.replace('border-gold', 'border-gray-200'));
+      btn.classList.replace('border-gray-200', 'border-gold');
+    });
+  });
+
+  // Cerrar modal
+  const closeBtn = document.getElementById('btn-close-tech-modal');
+  const footerCloseBtn = document.getElementById('btn-tech-modal-close');
+  if (closeBtn) closeBtn.onclick = _closeTechSheetModal;
+  if (footerCloseBtn) footerCloseBtn.onclick = _closeTechSheetModal;
+  modal.onclick = (e) => {
+    if (e.target === modal) _closeTechSheetModal();
+  };
+
+  // Botón para saltar directo a la tarjeta y configurar
+  document.getElementById('btn-tech-modal-scroll')?.addEventListener('click', () => {
+    _closeTechSheetModal();
+    const card = document.querySelector(`[data-card-id="${product.id}"]`);
+    if (card) {
+      card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      card.classList.add('ring-4', 'ring-gold/60');
+      setTimeout(() => card.classList.remove('ring-4', 'ring-gold/60'), 2000);
+    }
+  });
+
+  // Atrapar foco para accesibilidad (A11y)
+  const firstFocusable = modal.querySelector('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+  if (firstFocusable) firstFocusable.focus();
+}
+
+function _closeTechSheetModal() {
+  const modal = EL.techModal();
+  if (!modal) return;
+  modal.classList.add('hidden');
+  modal.innerHTML = '';
+  document.body.style.overflow = '';
+  if (_lastFocusedElement) {
+    _lastFocusedElement.focus();
+    _lastFocusedElement = null;
+  }
+}
+
 // ─── Helpers privados ──────────────────────────────────────────
 
-/**
- * Genera el HTML del placeholder de imagen con patrón diagonal.
- * @param {import('../api/googleSheets.js').Product} p
- * @returns {string}
- * @private
- */
 function _placeholderSVG(p) {
-  const label = p.name.split(' ').slice(0, 2).join('\n');
+  const label = p.name ? p.name.split(' ').slice(0, 2).join('\n') : 'PRODUCTO';
   return `
-    <div class="img-placeholder w-full h-full flex items-center justify-center">
+    <div class="img-placeholder w-full h-full flex items-center justify-center bg-navy/80">
       <span class="text-white/60 font-display font-bold text-lg leading-tight
                    text-center whitespace-pre-line tracking-wider">
         ${_escapeHTML(label)}
@@ -755,12 +1429,6 @@ function _placeholderSVG(p) {
   `;
 }
 
-/**
- * Marca un <select> como inválido temporalmente.
- * @param {HTMLSelectElement|null} el
- * @param {string} toastMsg
- * @private
- */
 function _markInvalid(el, toastMsg) {
   if (el) {
     el.classList.add('border-red-400', 'ring-2', 'ring-red-200');
@@ -770,7 +1438,6 @@ function _markInvalid(el, toastMsg) {
   document.dispatchEvent(new CustomEvent('ui:toast', { detail: { msg: `⚠ ${toastMsg}` } }));
 }
 
-/** Escapa HTML para prevenir XSS @param {string} s @returns {string} */
 function _escapeHTML(s) {
   return String(s ?? '')
     .replace(/&/g, '&amp;')
@@ -779,12 +1446,10 @@ function _escapeHTML(s) {
     .replace(/"/g, '&quot;');
 }
 
-/** Escapa para atributos HTML @param {string} s @returns {string} */
 function _escapeAttr(s) {
   return String(s ?? '').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
-/** Oculta el spinner de carga @private */
 function _hideLoading() {
   EL.loading()?.classList.add('hidden');
 }
