@@ -47,6 +47,7 @@
         },
       },
     };
+  </script>
   <!-- Nota: jsPDF + AutoTable se cargan de forma diferida (lazy loading) solo al abrir la cotización -->
   <script>
     window.addEventListener('error', function(e) {
@@ -298,6 +299,19 @@
     aria-modal="true"
     role="dialog"
     aria-label="Ficha técnica de producto"
+  >
+    <!-- Inyectado dinámicamente por catalog.js -->
+  </div>
+
+  <!-- ╔═══════════════════════════════════════════════════════════════╗
+       ║  MODAL DE MATRIZ DE TALLAS AMPLIADA — catalog.js lo controla  ║
+       ╚═══════════════════════════════════════════════════════════════╝ -->
+  <div
+    id="matrix-modal"
+    class="hidden fixed inset-0 bg-black/75 z-[65] overflow-y-auto py-8 px-3"
+    aria-modal="true"
+    role="dialog"
+    aria-label="Matriz táctica de tallas ampliada"
   >
     <!-- Inyectado dinámicamente por catalog.js -->
   </div>

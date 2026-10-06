@@ -27,6 +27,7 @@ const EL = {
   searchClearBtn:   () => document.getElementById('search-clear-btn'),
   sizeFilterSelect: () => document.getElementById('size-filter-select'),
   techModal:        () => document.getElementById('tech-sheet-modal'),
+  matrixModal:      () => document.getElementById('matrix-modal'),
 };
 
 // ─── Estado interno ────────────────────────────────────────────
@@ -464,8 +465,32 @@ function _recalculateMatrixCard(productId) {
   let totalQty = 0;
   inputs.forEach(inp => {
     const val = parseInt(inp.value, 10);
+    const tile = inp.closest('.matrix-tile');
     if (!isNaN(val) && val > 0) {
       totalQty += val;
+      if (tile) {
+        tile.classList.add('ring-2', 'ring-gold', 'border-gold', 'bg-[#1E3A5F]', 'shadow-[0_0_12px_rgba(255,215,0,0.25)]');
+        tile.classList.remove('border-navy-border');
+        const badge = tile.querySelector('.tile-size-badge');
+        if (badge) {
+          badge.classList.add('bg-gold', 'text-navy');
+          badge.classList.remove('bg-navy-border', 'text-white');
+        }
+        inp.classList.add('text-gold', 'font-black');
+        inp.classList.remove('text-white');
+      }
+    } else {
+      if (tile) {
+        tile.classList.remove('ring-2', 'ring-gold', 'border-gold', 'bg-[#1E3A5F]', 'shadow-[0_0_12px_rgba(255,215,0,0.25)]');
+        tile.classList.add('border-navy-border');
+        const badge = tile.querySelector('.tile-size-badge');
+        if (badge) {
+          badge.classList.remove('bg-gold', 'text-navy');
+          badge.classList.add('bg-navy-border', 'text-white');
+        }
+        inp.classList.remove('text-gold', 'font-black');
+        inp.classList.add('text-white');
+      }
     }
   });
 
@@ -473,9 +498,13 @@ function _recalculateMatrixCard(productId) {
 
   const qtyEl = card.querySelector(`.matrix-total-qty-${productId}`);
   const subtotalEl = card.querySelector(`.matrix-subtotal-${productId}`);
+  const btnLabel = card.querySelector(`.matrix-btn-label-${productId}`);
 
   if (qtyEl) qtyEl.textContent = String(totalQty);
   if (subtotalEl) subtotalEl.textContent = formatMXN(subtotal);
+  if (btnLabel) {
+    btnLabel.textContent = totalQty > 0 ? `AÑADIR LOTE (${totalQty} PZAS)` : 'AÑADIR LOTE (0 PZAS)';
+  }
 }
 
 /**
@@ -606,21 +635,29 @@ function _handleGridClick(e) {
     return;
   }
 
-  // 4. Toggle de la Matriz de Tallas por Lote
-  const toggleMatrixBtn = e.target.closest('.btn-toggle-matrix');
-  if (toggleMatrixBtn) {
-    const productId = toggleMatrixBtn.dataset.productId;
-    const container = document.getElementById(`matrix-container-${productId}`);
-    const chevron = toggleMatrixBtn.querySelector('.matrix-chevron');
-    if (container) {
-      const isHidden = container.classList.contains('hidden');
-      if (isHidden) {
-        container.classList.remove('hidden');
-        if (chevron) chevron.textContent = '▲ Ocultar matriz';
-        _recalculateMatrixCard(productId);
+  // 4. Selector de Modo en Tarjeta (Individual vs Matriz por Lote)
+  const tabBtn = e.target.closest('.tab-mode-btn');
+  if (tabBtn) {
+    const productId = tabBtn.dataset.productId;
+    const targetMode = tabBtn.dataset.targetMode;
+    const card = tabBtn.closest('[data-card-id]');
+    if (card) {
+      card.querySelectorAll('.tab-mode-btn').forEach(b => {
+        if (b.dataset.targetMode === targetMode) {
+          b.className = 'tab-mode-btn flex-1 py-1.5 px-2 rounded-lg text-center transition-all bg-navy text-gold shadow-xs';
+        } else {
+          b.className = 'tab-mode-btn flex-1 py-1.5 px-2 rounded-lg text-center transition-all text-gray-500 hover:text-navy';
+        }
+      });
+      const singlePanel = card.querySelector(`#single-panel-${productId}`);
+      const batchPanel = card.querySelector(`#batch-panel-${productId}`);
+      if (targetMode === 'single') {
+        singlePanel?.classList.remove('hidden');
+        batchPanel?.classList.add('hidden');
       } else {
-        container.classList.add('hidden');
-        if (chevron) chevron.textContent = '▼ Desplegar matriz';
+        singlePanel?.classList.add('hidden');
+        batchPanel?.classList.remove('hidden');
+        _recalculateMatrixCard(productId);
       }
     }
     return;
@@ -630,23 +667,84 @@ function _handleGridClick(e) {
   const matrixStepBtn = e.target.closest('.matrix-step-btn');
   if (matrixStepBtn) {
     const delta = parseInt(matrixStepBtn.dataset.delta, 10) || 0;
-    const input = matrixStepBtn.parentElement?.querySelector('.matrix-qty-input');
+    const productId = matrixStepBtn.dataset.productId;
+    const size = matrixStepBtn.dataset.size;
+    const card = matrixStepBtn.closest('[data-card-id]');
+    const input = card?.querySelector(`.matrix-qty-input[data-product-id="${productId}"][data-size="${size}"]`);
     if (input) {
       const curr = parseInt(input.value, 10) || 0;
       input.value = Math.max(0, Math.min(999, curr + delta));
-      _recalculateMatrixCard(input.dataset.productId);
+      _recalculateMatrixCard(productId);
     }
     return;
   }
 
-  // 6. Añadir Lote desde la Matriz de Tallas
+  // 6. Botón +5 rápido por talla en la matriz
+  const quickAddBtn = e.target.closest('.matrix-quick-add');
+  if (quickAddBtn) {
+    const delta = parseInt(quickAddBtn.dataset.delta, 10) || 5;
+    const productId = quickAddBtn.dataset.productId;
+    const size = quickAddBtn.dataset.size;
+    const card = quickAddBtn.closest('[data-card-id]');
+    const input = card?.querySelector(`.matrix-qty-input[data-product-id="${productId}"][data-size="${size}"]`);
+    if (input) {
+      const curr = parseInt(input.value, 10) || 0;
+      input.value = Math.max(0, Math.min(999, curr + delta));
+      _recalculateMatrixCard(productId);
+    }
+    return;
+  }
+
+  // 7. Llenado masivo de todo el lote (+5, +10, +20 a todas las tallas)
+  const batchFillBtn = e.target.closest('.btn-batch-fill');
+  if (batchFillBtn) {
+    const amount = parseInt(batchFillBtn.dataset.amount, 10) || 5;
+    const productId = batchFillBtn.dataset.productId;
+    const card = batchFillBtn.closest('[data-card-id]');
+    if (card) {
+      const inputs = card.querySelectorAll(`.matrix-qty-input[data-product-id="${productId}"]`);
+      inputs.forEach(inp => {
+        const curr = parseInt(inp.value, 10) || 0;
+        inp.value = Math.max(0, Math.min(999, curr + amount));
+      });
+      _recalculateMatrixCard(productId);
+    }
+    return;
+  }
+
+  // 8. Limpiar matriz de tallas a 0
+  const clearMatrixBtn = e.target.closest('.btn-clear-matrix');
+  if (clearMatrixBtn) {
+    const productId = clearMatrixBtn.dataset.productId;
+    const card = clearMatrixBtn.closest('[data-card-id]');
+    if (card) {
+      const inputs = card.querySelectorAll(`.matrix-qty-input[data-product-id="${productId}"]`);
+      inputs.forEach(inp => { inp.value = 0; });
+      _recalculateMatrixCard(productId);
+    }
+    return;
+  }
+
+  // 9. Abrir Matriz Táctica Ampliada en Pantalla Completa
+  const expandMatrixBtn = e.target.closest('.btn-expand-matrix');
+  if (expandMatrixBtn) {
+    const productId = expandMatrixBtn.dataset.productId;
+    const product = _allProducts.find(p => p.id === productId);
+    if (product) {
+      _lastFocusedElement = expandMatrixBtn;
+      _openExpandedMatrixModal(product);
+    }
+    return;
+  }
+
+  // 10. Añadir Lote desde la Matriz de Tallas
   const addMatrixBtn = e.target.closest('.btn-add-matrix');
   if (addMatrixBtn) {
     _handleAddMatrix(addMatrixBtn);
     return;
   }
 
-  // 7. Botón regular "AÑADIR A LA LISTA" (individual)
+  // 11. Botón regular "AÑADIR A LA LISTA" (individual)
   const btn = e.target.closest('.btn-add-product');
   if (btn) {
     _handleAddSingleProduct(btn);
@@ -1013,145 +1111,274 @@ function _buildCardHTML(p, index) {
           </div>
         ` : ''}
 
-        <!-- Selector de talla individual (si tiene varias) -->
+        <!-- Selector de Modo o Controles de Compra -->
         ${hasSizes ? `
-          <div class="mb-3">
-            <label for="size-${_escapeAttr(p.id)}"
-                   class="block text-xs font-semibold text-gray-500 mb-1 tracking-wide">
-              TALLA INDIVIDUAL:
-            </label>
-            <select
-              id="size-${_escapeAttr(p.id)}"
-              class="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm text-navy
-                     bg-white focus:outline-none focus:ring-2 focus:ring-gold/40 focus:border-gold
-                     transition-colors"
-            >
-              <option value="">Seleccionar talla…</option>
-              ${p.sizes.map(s => `<option value="${_escapeAttr(s)}">${_escapeHTML(s)}</option>`).join('')}
-            </select>
-          </div>
-        ` : ''}
-
-        <!-- Control de cantidad unitaria -->
-        <div class="mb-3 flex items-center gap-2">
-          <span class="text-xs font-semibold text-gray-500 tracking-wide">CANT:</span>
-          <div class="flex items-center border border-gray-300 rounded-lg overflow-hidden">
+          <!-- Selector Segmentado: Individual vs Lote -->
+          <div class="mb-3 bg-slate-100 p-1 rounded-xl flex items-center gap-1 text-xs font-display font-bold">
             <button
               type="button"
-              onclick="
-                const el=document.getElementById('qty-${p.id}');
-                el.value=Math.max(1,parseInt(el.value||1)-1);
-              "
-              class="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-navy font-bold
-                     text-sm transition-colors select-none"
-              aria-label="Reducir cantidad"
-            >−</button>
-            <input
-              id="qty-${_escapeAttr(p.id)}"
-              type="number"
-              value="1" min="1" max="999"
-              class="w-14 text-center text-sm font-semibold py-1.5 border-0
-                     focus:outline-none text-navy"
-              aria-label="Cantidad"
-            />
-            <button
-              type="button"
-              onclick="
-                const el=document.getElementById('qty-${p.id}');
-                el.value=Math.min(999,parseInt(el.value||1)+1);
-              "
-              class="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-navy font-bold
-                     text-sm transition-colors select-none"
-              aria-label="Aumentar cantidad"
-            >+</button>
-          </div>
-        </div>
-
-        <!-- Botón de añadir individual -->
-        <button
-          type="button"
-          class="btn-add-product bg-gold hover:bg-gold-hover text-navy font-display font-bold
-                 w-full py-2.5 rounded-xl text-sm flex items-center justify-center gap-2
-                 shadow transition-all duration-150 hover:scale-[1.01] active:scale-[0.99]
-                 tracking-wide"
-          data-product-id="${_escapeAttr(p.id)}"
-          aria-label="Añadir ${_escapeAttr(p.name)} al pedido"
-        >
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
-          </svg>
-          AÑADIR A LA LISTA
-        </button>
-
-        <!-- ════════════════════════════════════════════════════
-             MATRIZ DE TALLAS POR LOTE (Requisito 1 de Fase 3)
-             ════════════════════════════════════════════════════ -->
-        ${hasSizes ? `
-          <div class="mt-3 pt-2.5 border-t border-gray-100">
-            <button
-              type="button"
-              class="btn-toggle-matrix text-xs font-bold text-navy hover:text-gold-dark flex items-center justify-between w-full py-1 group transition-colors"
+              class="tab-mode-btn flex-1 py-1.5 px-2 rounded-lg text-center transition-all bg-navy text-gold shadow-xs"
+              data-target-mode="single"
               data-product-id="${_escapeAttr(p.id)}"
-              aria-expanded="false"
             >
-              <span class="flex items-center gap-1.5 text-navy group-hover:text-gold-dark font-display tracking-wide text-xs uppercase">
-                <svg class="w-3.5 h-3.5 text-gold-dark" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/>
-                </svg>
-                Matriz de Tallas por Lote
-              </span>
-              <span class="matrix-chevron text-[11px] text-gray-500 font-normal">▼ Desplegar</span>
+              🔘 INDIVIDUAL
             </button>
+            <button
+              type="button"
+              class="tab-mode-btn flex-1 py-1.5 px-2 rounded-lg text-center transition-all text-gray-500 hover:text-navy"
+              data-target-mode="batch"
+              data-product-id="${_escapeAttr(p.id)}"
+            >
+              📦 MATRIZ POR LOTE
+            </button>
+          </div>
 
-            <div id="matrix-container-${_escapeAttr(p.id)}"
-                 class="matrix-container hidden mt-2 bg-slate-50 border border-slate-200 rounded-xl p-3 shadow-inner">
-              <p class="text-[11px] text-gray-500 mb-2 font-medium">
-                Especifica la cantidad de piezas deseadas para cada talla:
-              </p>
-              
-              <div class="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                ${p.sizes.map(s => `
-                  <div class="bg-white border border-gray-200 rounded-lg p-1.5 text-center shadow-xs">
-                    <span class="block text-xs font-bold text-navy truncate" title="${_escapeAttr(s)}">
+          <!-- Panel Individual (Talla unitaria estándar) -->
+          <div id="single-panel-${_escapeAttr(p.id)}" class="space-y-3">
+            <div>
+              <label for="size-${_escapeAttr(p.id)}"
+                     class="block text-xs font-semibold text-gray-500 mb-1 tracking-wide">
+                TALLA INDIVIDUAL:
+              </label>
+              <select
+                id="size-${_escapeAttr(p.id)}"
+                class="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm text-navy
+                       bg-white focus:outline-none focus:ring-2 focus:ring-gold/40 focus:border-gold
+                       transition-colors"
+              >
+                <option value="">Seleccionar talla…</option>
+                ${p.sizes.map(s => `<option value="${_escapeAttr(s)}">${_escapeHTML(s)}</option>`).join('')}
+              </select>
+            </div>
+
+            <!-- Cantidad Unitaria -->
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-semibold text-gray-500 tracking-wide">CANT:</span>
+              <div class="flex items-center border border-gray-300 rounded-lg overflow-hidden">
+                <button
+                  type="button"
+                  onclick="
+                    const el=document.getElementById('qty-${p.id}');
+                    el.value=Math.max(1,parseInt(el.value||1)-1);
+                  "
+                  class="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-navy font-bold
+                         text-sm transition-colors select-none"
+                  aria-label="Reducir cantidad"
+                >−</button>
+                <input
+                  id="qty-${_escapeAttr(p.id)}"
+                  type="number"
+                  value="1" min="1" max="999"
+                  class="w-14 text-center text-sm font-semibold py-1.5 border-0
+                         focus:outline-none text-navy"
+                  aria-label="Cantidad"
+                />
+                <button
+                  type="button"
+                  onclick="
+                    const el=document.getElementById('qty-${p.id}');
+                    el.value=Math.min(999,parseInt(el.value||1)+1);
+                  "
+                  class="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-navy font-bold
+                         text-sm transition-colors select-none"
+                  aria-label="Aumentar cantidad"
+                >+</button>
+              </div>
+            </div>
+
+            <!-- Botón Añadir Individual -->
+            <button
+              type="button"
+              class="btn-add-product bg-gold hover:bg-gold-hover text-navy font-display font-bold
+                     w-full py-2.5 rounded-xl text-sm flex items-center justify-center gap-2
+                     shadow transition-all duration-150 hover:scale-[1.01] active:scale-[0.99]
+                     tracking-wide"
+              data-product-id="${_escapeAttr(p.id)}"
+              aria-label="Añadir ${_escapeAttr(p.name)} al pedido"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+              </svg>
+              AÑADIR A LA LISTA
+            </button>
+          </div>
+
+          <!-- Panel Táctico de Lote (Matriz de Tallas) -->
+          <div id="batch-panel-${_escapeAttr(p.id)}"
+               class="hidden bg-gradient-to-br from-navy via-navy-light to-navy-border rounded-2xl p-3 border border-gold/40 shadow-xl text-white">
+            
+            <!-- Encabezado del panel -->
+            <div class="flex items-center justify-between mb-2 pb-2 border-b border-white/10">
+              <div class="flex items-center gap-1.5">
+                <svg class="w-3.5 h-3.5 text-gold shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
+                </svg>
+                <span class="text-xs font-display font-bold text-gold tracking-wide uppercase">
+                  Distribución por Lote
+                </span>
+              </div>
+              <div class="flex items-center gap-2">
+                <button
+                  type="button"
+                  class="btn-expand-matrix text-[10px] text-slate-soft hover:text-gold flex items-center gap-0.5 transition-colors"
+                  data-product-id="${_escapeAttr(p.id)}"
+                  title="Abrir vista ampliada"
+                >
+                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/></svg>
+                  Ampliar
+                </button>
+                <button
+                  type="button"
+                  class="btn-clear-matrix text-[10px] text-slate-soft hover:text-red-400 transition-colors"
+                  data-product-id="${_escapeAttr(p.id)}"
+                  title="Restablecer cantidades a 0"
+                >
+                  ✕ Limpiar
+                </button>
+              </div>
+            </div>
+
+            <!-- Atajos rápidos de llenado -->
+            <div class="flex items-center justify-between gap-1 mb-2.5 px-2 py-1 rounded-lg bg-navy/60 border border-white/5 text-[10px]">
+              <span class="text-slate-soft font-semibold">Llenar lote:</span>
+              <div class="flex items-center gap-1">
+                <button type="button" class="btn-batch-fill px-2 py-0.5 rounded bg-navy-border hover:bg-gold hover:text-navy text-slate-light border border-white/10 font-bold transition-colors" data-amount="5" data-product-id="${_escapeAttr(p.id)}">+5 c/u</button>
+                <button type="button" class="btn-batch-fill px-2 py-0.5 rounded bg-navy-border hover:bg-gold hover:text-navy text-slate-light border border-white/10 font-bold transition-colors" data-amount="10" data-product-id="${_escapeAttr(p.id)}">+10 c/u</button>
+                <button type="button" class="btn-batch-fill px-2 py-0.5 rounded bg-navy-border hover:bg-gold hover:text-navy text-slate-light border border-white/10 font-bold transition-colors" data-amount="20" data-product-id="${_escapeAttr(p.id)}">+20 c/u</button>
+              </div>
+            </div>
+
+            <!-- Rejilla de tallas -->
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              ${p.sizes.map(s => `
+                <div class="matrix-tile bg-navy-light/90 border border-navy-border rounded-xl p-2 transition-all duration-200 text-center"
+                     data-tile-size="${_escapeAttr(s)}"
+                     data-product-id="${_escapeAttr(p.id)}">
+                  <div class="flex items-center justify-between mb-1.5">
+                    <span class="tile-size-badge text-xs font-display font-black text-white px-2 py-0.5 rounded-md bg-navy-border transition-colors">
                       ${_escapeHTML(s)}
                     </span>
-                    <div class="flex items-center justify-between mt-1 border border-gray-200 rounded bg-gray-50">
-                      <button type="button" class="matrix-step-btn px-1.5 py-0.5 text-xs font-bold text-gray-500 hover:text-navy hover:bg-gray-200 transition-colors select-none" data-delta="-1" aria-label="Reducir talla ${_escapeAttr(s)}">−</button>
-                      <input
-                        type="number"
-                        min="0"
-                        max="999"
-                        value="0"
-                        class="matrix-qty-input w-8 text-center text-xs font-bold py-0.5 border-0 bg-transparent text-navy focus:outline-none"
-                        data-size="${_escapeAttr(s)}"
-                        data-product-id="${_escapeAttr(p.id)}"
-                        aria-label="Cantidad para talla ${_escapeAttr(s)}"
-                      />
-                      <button type="button" class="matrix-step-btn px-1.5 py-0.5 text-xs font-bold text-gray-500 hover:text-navy hover:bg-gray-200 transition-colors select-none" data-delta="1" aria-label="Aumentar talla ${_escapeAttr(s)}">+</button>
-                    </div>
+                    <button
+                      type="button"
+                      class="matrix-quick-add text-[10px] font-bold text-slate-soft hover:text-gold hover:bg-navy px-1.5 py-0.5 rounded transition-colors"
+                      data-delta="5"
+                      data-size="${_escapeAttr(s)}"
+                      data-product-id="${_escapeAttr(p.id)}"
+                      title="Sumar 5 a talla ${_escapeAttr(s)}"
+                    >+5</button>
                   </div>
-                `).join('')}
-              </div>
 
-              <!-- Resumen dinámico en vivo -->
-              <div class="mt-3 pt-2 border-t border-slate-200 flex items-center justify-between text-xs">
-                <span class="text-gray-600">Piezas lote: <strong class="matrix-total-qty-${_escapeAttr(p.id)} text-navy font-bold">0</strong></span>
-                <span class="text-gray-600">Subtotal: <strong class="matrix-subtotal-${_escapeAttr(p.id)} text-navy font-bold">${formatMXN(0)}</strong></span>
-              </div>
+                  <div class="flex items-center justify-between bg-navy/90 rounded-lg border border-navy-border overflow-hidden">
+                    <button
+                      type="button"
+                      class="matrix-step-btn w-7 h-7 flex items-center justify-center text-sm font-bold text-slate-soft hover:text-white hover:bg-navy-border transition-colors select-none"
+                      data-delta="-1"
+                      data-size="${_escapeAttr(s)}"
+                      data-product-id="${_escapeAttr(p.id)}"
+                      aria-label="Restar 1 a ${_escapeAttr(s)}"
+                    >−</button>
+                    <input
+                      type="number"
+                      min="0"
+                      max="999"
+                      value="0"
+                      class="matrix-qty-input w-full text-center text-xs font-bold py-1 bg-transparent text-white focus:outline-none"
+                      data-size="${_escapeAttr(s)}"
+                      data-product-id="${_escapeAttr(p.id)}"
+                      aria-label="Cantidad para talla ${_escapeAttr(s)}"
+                    />
+                    <button
+                      type="button"
+                      class="matrix-step-btn w-7 h-7 flex items-center justify-center text-sm font-bold text-slate-soft hover:text-white hover:bg-navy-border transition-colors select-none"
+                      data-delta="1"
+                      data-size="${_escapeAttr(s)}"
+                      data-product-id="${_escapeAttr(p.id)}"
+                      aria-label="Sumar 1 a ${_escapeAttr(s)}"
+                    >+</button>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
 
+            <!-- Tally en vivo -->
+            <div class="mt-3 pt-2 border-t border-white/10 flex items-center justify-between text-xs">
+              <div>
+                <span class="text-slate-soft text-[10px] uppercase font-bold tracking-wider">Total Lote:</span>
+                <div class="font-display text-base font-black text-white">
+                  <span class="matrix-total-qty-${_escapeAttr(p.id)}">0</span> <span class="text-[11px] font-normal text-slate-soft">pzas</span>
+                </div>
+              </div>
+              <div class="text-right">
+                <span class="text-slate-soft text-[10px] uppercase font-bold tracking-wider">Subtotal:</span>
+                <div class="font-display text-base font-black text-gold matrix-subtotal-${_escapeAttr(p.id)}">
+                  ${formatMXN(0)}
+                </div>
+              </div>
+            </div>
+
+            <!-- Botón añadir lote -->
+            <button
+              type="button"
+              class="btn-add-matrix mt-2.5 w-full bg-gold hover:bg-gold-hover text-navy text-xs font-display font-black py-2.5 rounded-xl transition-all flex items-center justify-center gap-1.5 shadow-lg active:scale-95"
+              data-product-id="${_escapeAttr(p.id)}"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+              </svg>
+              <span class="matrix-btn-label-${_escapeAttr(p.id)}">AÑADIR LOTE (0 PZAS)</span>
+            </button>
+          </div>
+        ` : `
+          <!-- Control de cantidad unitaria para accesorios sin tallas -->
+          <div class="mb-3 flex items-center gap-2">
+            <span class="text-xs font-semibold text-gray-500 tracking-wide">CANT:</span>
+            <div class="flex items-center border border-gray-300 rounded-lg overflow-hidden">
               <button
                 type="button"
-                class="btn-add-matrix mt-2.5 w-full bg-navy hover:bg-navy-light text-gold text-xs font-display font-bold py-2 rounded-lg transition-all flex items-center justify-center gap-1.5 shadow"
-                data-product-id="${_escapeAttr(p.id)}"
-              >
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
-                </svg>
-                AÑADIR LOTE AL PEDIDO
-              </button>
+                onclick="
+                  const el=document.getElementById('qty-${p.id}');
+                  el.value=Math.max(1,parseInt(el.value||1)-1);
+                "
+                class="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-navy font-bold
+                       text-sm transition-colors select-none"
+                aria-label="Reducir cantidad"
+              >−</button>
+              <input
+                id="qty-${_escapeAttr(p.id)}"
+                type="number"
+                value="1" min="1" max="999"
+                class="w-14 text-center text-sm font-semibold py-1.5 border-0
+                       focus:outline-none text-navy"
+                aria-label="Cantidad"
+              />
+              <button
+                type="button"
+                onclick="
+                  const el=document.getElementById('qty-${p.id}');
+                  el.value=Math.min(999,parseInt(el.value||1)+1);
+                "
+                class="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-navy font-bold
+                       text-sm transition-colors select-none"
+                aria-label="Aumentar cantidad"
+              >+</button>
             </div>
           </div>
-        ` : ''}
+
+          <button
+            type="button"
+            class="btn-add-product bg-gold hover:bg-gold-hover text-navy font-display font-bold
+                   w-full py-2.5 rounded-xl text-sm flex items-center justify-center gap-2
+                   shadow transition-all duration-150 hover:scale-[1.01] active:scale-[0.99]
+                   tracking-wide"
+            data-product-id="${_escapeAttr(p.id)}"
+            aria-label="Añadir ${_escapeAttr(p.name)} al pedido"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+            </svg>
+            AÑADIR A LA LISTA
+          </button>
+        `}
 
         <!-- ════════════════════════════════════════════════════
              BOTÓN DE FICHA TÉCNICA OFICIAL (Requisito 5 de Fase 3)
@@ -1180,6 +1407,10 @@ function _initTechModalListeners() {
       const modal = EL.techModal();
       if (modal && !modal.classList.contains('hidden')) {
         _closeTechSheetModal();
+      }
+      const matModal = EL.matrixModal();
+      if (matModal && !matModal.classList.contains('hidden')) {
+        _closeExpandedMatrixModal();
       }
     }
   });
@@ -1405,6 +1636,383 @@ function _openTechSheetModal(product) {
 
 function _closeTechSheetModal() {
   const modal = EL.techModal();
+  if (!modal) return;
+  modal.classList.add('hidden');
+  modal.innerHTML = '';
+  document.body.style.overflow = '';
+  if (_lastFocusedElement) {
+    _lastFocusedElement.focus();
+    _lastFocusedElement = null;
+  }
+}
+
+// ─── Modal de Matriz de Tallas Ampliada (Pantalla Completa) ───
+
+function _openExpandedMatrixModal(product) {
+  const modal = EL.matrixModal();
+  if (!modal) return;
+
+  const colorOpts = getColorOptions(product.name);
+
+  modal.innerHTML = `
+    <div class="bg-navy max-w-2xl mx-auto rounded-2xl shadow-2xl overflow-hidden border border-gold/40 text-white relative animate-in fade-in zoom-in-95 duration-150"
+         role="document">
+
+      <!-- Header del Modal -->
+      <div class="bg-gradient-to-r from-navy via-navy-light to-navy-border px-6 py-4 flex items-center justify-between border-b border-gold/20">
+        <div class="flex items-center gap-3">
+          <div class="bg-gold/20 p-2.5 rounded-xl text-gold">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
+            </svg>
+          </div>
+          <div>
+            <h2 class="font-display text-xl font-bold text-gold tracking-wide uppercase leading-tight">
+              MATRIZ TÁCTICA EXPANDIDA
+            </h2>
+            <p class="text-xs text-slate-soft">${_escapeHTML(product.name)} · Asignación por Tallas</p>
+          </div>
+        </div>
+        <button id="btn-close-expanded-matrix"
+                class="text-slate-soft hover:text-gold p-2 rounded-lg transition-colors"
+                aria-label="Cerrar matriz ampliada">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Cuerpo del Modal -->
+      <div class="p-6 space-y-5 max-h-[80vh] overflow-y-auto">
+        <!-- Barra de producto: Precio, SKU y Selector de color -->
+        <div class="bg-navy-light/90 border border-navy-border rounded-xl p-3.5 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <span class="text-xs text-slate-soft font-mono">SKU: ${_escapeHTML(product.sku || product.id)}</span>
+            <div class="font-display text-xl font-bold text-white">
+              ${formatMXN(product.price)} <span class="text-xs text-gold font-normal">IVA Incluido</span>
+            </div>
+          </div>
+
+          ${colorOpts ? `
+            <div class="flex items-center gap-2">
+              <span class="text-xs text-slate-soft font-semibold">Color:</span>
+              <div class="modal-color-area flex gap-1.5">
+                ${colorOpts.map(c => `
+                  <button
+                    type="button"
+                    class="modal-color-swatch w-7 h-7 rounded-full border-2 shadow transition-transform hover:scale-110"
+                    style="background-color: ${c.css}"
+                    data-color-label="${_escapeAttr(c.label)}"
+                    title="${_escapeAttr(c.label)}"
+                    aria-pressed="false"
+                  ></button>
+                `).join('')}
+              </div>
+            </div>
+          ` : ''}
+        </div>
+
+        <!-- Atajos de Llenado Rápido -->
+        <div class="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-navy-light/60 border border-white/5 text-xs">
+          <span class="text-slate-soft font-semibold">Llenado masivo por escuadra:</span>
+          <div class="flex items-center gap-1.5">
+            <button type="button" class="btn-modal-fill px-2.5 py-1 rounded-lg bg-navy-border hover:bg-gold hover:text-navy text-slate-light font-bold text-xs transition-colors" data-amount="5">+5 a c/u</button>
+            <button type="button" class="btn-modal-fill px-2.5 py-1 rounded-lg bg-navy-border hover:bg-gold hover:text-navy text-slate-light font-bold text-xs transition-colors" data-amount="10">+10 a c/u</button>
+            <button type="button" class="btn-modal-fill px-2.5 py-1 rounded-lg bg-navy-border hover:bg-gold hover:text-navy text-slate-light font-bold text-xs transition-colors" data-amount="20">+20 a c/u</button>
+            <button type="button" class="btn-modal-reset px-2.5 py-1 rounded-lg text-slate-soft hover:text-red-400 font-semibold text-xs transition-colors">Limpiar</button>
+          </div>
+        </div>
+
+        <!-- Rejilla de Tallas táctica ampliada -->
+        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+          ${product.sizes.map(s => `
+            <div class="modal-tile bg-navy-light border border-navy-border rounded-xl p-3 text-center transition-all duration-200"
+                 data-size="${_escapeAttr(s)}">
+              <div class="flex items-center justify-between mb-2">
+                <span class="modal-tile-badge text-sm font-display font-black text-white px-2.5 py-0.5 rounded-md bg-navy-border">
+                  ${_escapeHTML(s)}
+                </span>
+                <button
+                  type="button"
+                  class="btn-modal-quick-add text-xs font-bold text-slate-soft hover:text-gold hover:bg-navy px-1.5 py-0.5 rounded transition-colors"
+                  data-size="${_escapeAttr(s)}"
+                  data-delta="5"
+                >+5</button>
+              </div>
+
+              <div class="flex items-center justify-between bg-navy rounded-lg border border-navy-border overflow-hidden">
+                <button
+                  type="button"
+                  class="btn-modal-step w-8 h-8 flex items-center justify-center text-sm font-bold text-slate-soft hover:text-white hover:bg-navy-border transition-colors select-none"
+                  data-size="${_escapeAttr(s)}"
+                  data-delta="-1"
+                >−</button>
+                <input
+                  type="number"
+                  min="0"
+                  max="999"
+                  value="0"
+                  class="modal-qty-input w-full text-center text-sm font-bold py-1 bg-transparent text-white focus:outline-none"
+                  data-size="${_escapeAttr(s)}"
+                />
+                <button
+                  type="button"
+                  class="btn-modal-step w-8 h-8 flex items-center justify-center text-sm font-bold text-slate-soft hover:text-white hover:bg-navy-border transition-colors select-none"
+                  data-size="${_escapeAttr(s)}"
+                  data-delta="1"
+                >+</button>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+
+        <!-- Resumen de totales -->
+        <div class="bg-gradient-to-r from-navy-light to-navy-border p-4 rounded-xl border border-gold/30 flex items-center justify-between">
+          <div>
+            <span class="text-xs text-slate-soft uppercase font-bold tracking-wider">Total Piezas:</span>
+            <div class="font-display text-2xl font-black text-white">
+              <span id="modal-matrix-total-qty">0</span> <span class="text-sm font-normal text-slate-soft">piezas</span>
+            </div>
+          </div>
+          <div class="text-right">
+            <span class="text-xs text-slate-soft uppercase font-bold tracking-wider">Subtotal Lote:</span>
+            <div class="font-display text-2xl font-black text-gold" id="modal-matrix-subtotal">
+              ${formatMXN(0)}
+            </div>
+          </div>
+        </div>
+
+        <!-- Acciones -->
+        <div class="pt-2 flex items-center justify-end gap-3">
+          <button id="btn-modal-cancel-matrix"
+                  class="px-4 py-2.5 text-xs font-semibold text-slate-soft hover:text-white transition-colors">
+            Cancelar
+          </button>
+          <button id="btn-modal-submit-matrix"
+                  class="bg-gold hover:bg-gold-hover text-navy text-xs font-display font-black px-6 py-3 rounded-xl transition-all shadow-lg flex items-center gap-2 active:scale-95">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+            </svg>
+            <span id="modal-submit-label">AÑADIR LOTE (0 PZAS) AL PEDIDO</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  modal.classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+
+  // Leer estado existente de la tarjeta si ya tenía cantidades
+  const card = document.querySelector(`[data-card-id="${product.id}"]`);
+  let selectedColor = '';
+  if (card) {
+    const cardColor = card.querySelector('.color-swatch[aria-pressed="true"]');
+    if (cardColor) {
+      selectedColor = cardColor.dataset.colorLabel || '';
+      const modalSwatch = modal.querySelector(`.modal-color-swatch[data-color-label="${selectedColor}"]`);
+      if (modalSwatch) {
+        modalSwatch.classList.add('ring-2', 'ring-gold', 'ring-offset-1');
+        modalSwatch.setAttribute('aria-pressed', 'true');
+      }
+    }
+
+    // Copiar cantidades de la tarjeta a la ventana modal
+    const cardInputs = card.querySelectorAll(`.matrix-qty-input[data-product-id="${product.id}"]`);
+    cardInputs.forEach(ci => {
+      const s = ci.dataset.size;
+      const v = parseInt(ci.value, 10) || 0;
+      if (v > 0) {
+        const mi = modal.querySelector(`.modal-qty-input[data-size="${s}"]`);
+        if (mi) mi.value = v;
+      }
+    });
+  }
+
+  // Función de recalcular dentro del modal
+  function _recalcModal() {
+    let tot = 0;
+    modal.querySelectorAll('.modal-qty-input').forEach(inp => {
+      const v = parseInt(inp.value, 10);
+      const tile = inp.closest('.modal-tile');
+      if (!isNaN(v) && v > 0) {
+        tot += v;
+        if (tile) {
+          tile.classList.add('ring-2', 'ring-gold', 'border-gold', 'bg-[#1E3A5F]', 'shadow-[0_0_12px_rgba(255,215,0,0.25)]');
+          tile.classList.remove('border-navy-border');
+          const badge = tile.querySelector('.modal-tile-badge');
+          if (badge) {
+            badge.classList.add('bg-gold', 'text-navy');
+            badge.classList.remove('bg-navy-border', 'text-white');
+          }
+          inp.classList.add('text-gold', 'font-black');
+          inp.classList.remove('text-white');
+        }
+      } else {
+        if (tile) {
+          tile.classList.remove('ring-2', 'ring-gold', 'border-gold', 'bg-[#1E3A5F]', 'shadow-[0_0_12px_rgba(255,215,0,0.25)]');
+          tile.classList.add('border-navy-border');
+          const badge = tile.querySelector('.modal-tile-badge');
+          if (badge) {
+            badge.classList.remove('bg-gold', 'text-navy');
+            badge.classList.add('bg-navy-border', 'text-white');
+          }
+          inp.classList.remove('text-gold', 'font-black');
+          inp.classList.add('text-white');
+        }
+      }
+    });
+
+    const sub = tot * product.price;
+    const qEl = document.getElementById('modal-matrix-total-qty');
+    const sEl = document.getElementById('modal-matrix-subtotal');
+    const bEl = document.getElementById('modal-submit-label');
+    if (qEl) qEl.textContent = String(tot);
+    if (sEl) sEl.textContent = formatMXN(sub);
+    if (bEl) bEl.textContent = tot > 0 ? `AÑADIR LOTE (${tot} PZAS) AL PEDIDO` : 'AÑADIR LOTE (0 PZAS) AL PEDIDO';
+  }
+
+  _recalcModal();
+
+  // Color picker en el modal
+  modal.querySelectorAll('.modal-color-swatch').forEach(sw => {
+    sw.addEventListener('click', () => {
+      modal.querySelectorAll('.modal-color-swatch').forEach(b => {
+        b.classList.remove('ring-2', 'ring-gold', 'ring-offset-1');
+        b.removeAttribute('aria-pressed');
+      });
+      sw.classList.add('ring-2', 'ring-gold', 'ring-offset-1');
+      sw.setAttribute('aria-pressed', 'true');
+      selectedColor = sw.dataset.colorLabel || '';
+
+      // Sincronizar con la tarjeta
+      if (card) {
+        card.querySelectorAll('.color-swatch').forEach(cb => {
+          if (cb.dataset.colorLabel === selectedColor) {
+            cb.classList.add('ring-2', 'ring-offset-1', 'ring-gold');
+            cb.setAttribute('aria-pressed', 'true');
+          } else {
+            cb.classList.remove('ring-2', 'ring-offset-1', 'ring-gold');
+            cb.removeAttribute('aria-pressed');
+          }
+        });
+      }
+    });
+  });
+
+  // Steppers del modal
+  modal.querySelectorAll('.btn-modal-step').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const delta = parseInt(btn.dataset.delta, 10) || 0;
+      const size = btn.dataset.size;
+      const inp = modal.querySelector(`.modal-qty-input[data-size="${size}"]`);
+      if (inp) {
+        const cur = parseInt(inp.value, 10) || 0;
+        inp.value = Math.max(0, Math.min(999, cur + delta));
+        _recalcModal();
+      }
+    });
+  });
+
+  // +5 rápido por talla
+  modal.querySelectorAll('.btn-modal-quick-add').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const delta = parseInt(btn.dataset.delta, 10) || 5;
+      const size = btn.dataset.size;
+      const inp = modal.querySelector(`.modal-qty-input[data-size="${size}"]`);
+      if (inp) {
+        const cur = parseInt(inp.value, 10) || 0;
+        inp.value = Math.max(0, Math.min(999, cur + delta));
+        _recalcModal();
+      }
+    });
+  });
+
+  // Llenado masivo
+  modal.querySelectorAll('.btn-modal-fill').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const amt = parseInt(btn.dataset.amount, 10) || 5;
+      modal.querySelectorAll('.modal-qty-input').forEach(inp => {
+        const cur = parseInt(inp.value, 10) || 0;
+        inp.value = Math.max(0, Math.min(999, cur + amt));
+      });
+      _recalcModal();
+    });
+  });
+
+  // Reset
+  document.querySelector('.btn-modal-reset')?.addEventListener('click', () => {
+    modal.querySelectorAll('.modal-qty-input').forEach(inp => { inp.value = 0; });
+    _recalcModal();
+  });
+
+  // Inputs directos
+  modal.querySelectorAll('.modal-qty-input').forEach(inp => {
+    inp.addEventListener('input', _recalcModal);
+  });
+
+  // Enviar lote desde el modal
+  document.getElementById('btn-modal-submit-matrix')?.addEventListener('click', () => {
+    if (colorOpts && !selectedColor) {
+      document.dispatchEvent(new CustomEvent('ui:toast', { detail: { msg: '⚠ Selecciona un color institucional antes de añadir el lote' } }));
+      return;
+    }
+
+    const batches = [];
+    let totalAdded = 0;
+    modal.querySelectorAll('.modal-qty-input').forEach(inp => {
+      const q = parseInt(inp.value, 10);
+      if (!isNaN(q) && q > 0) {
+        batches.push({ size: inp.dataset.size, qty: q });
+        totalAdded += q;
+      }
+    });
+
+    if (batches.length === 0) {
+      document.dispatchEvent(new CustomEvent('ui:toast', { detail: { msg: '⚠ Ingresa al menos una pieza en la matriz' } }));
+      return;
+    }
+
+    // Disparar eventos
+    batches.forEach(b => {
+      document.dispatchEvent(new CustomEvent('product:add', {
+        detail: {
+          product,
+          size: b.size,
+          qty: b.qty,
+          variant: null,
+          customPrice: product.price,
+          color: selectedColor,
+          slotInfo: ''
+        }
+      }));
+    });
+
+    // Limpiar tarjeta e inputs
+    if (card) {
+      card.querySelectorAll(`.matrix-qty-input[data-product-id="${product.id}"]`).forEach(ci => { ci.value = 0; });
+      _recalculateMatrixCard(product.id);
+    }
+
+    _closeExpandedMatrixModal();
+    document.dispatchEvent(new CustomEvent('ui:toast', {
+      detail: { msg: `✓ Lote agregado: ${totalAdded} piezas (${product.name})` }
+    }));
+  });
+
+  // Cerrar
+  document.getElementById('btn-close-expanded-matrix')?.addEventListener('click', _closeExpandedMatrixModal);
+  document.getElementById('btn-modal-cancel-matrix')?.addEventListener('click', _closeExpandedMatrixModal);
+  modal.onclick = (e) => {
+    if (e.target === modal) _closeExpandedMatrixModal();
+  };
+
+  const firstFocusable = modal.querySelector('button, input');
+  if (firstFocusable) firstFocusable.focus();
+}
+
+function _closeExpandedMatrixModal() {
+  const modal = EL.matrixModal();
   if (!modal) return;
   modal.classList.add('hidden');
   modal.innerHTML = '';
