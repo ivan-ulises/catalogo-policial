@@ -44,5 +44,16 @@
   to = "/404"
   status = 404
 
+# Panel Administrativo: alias amigables hacia admin.html
+[[redirects]]
+  from = "/admin"
+  to = "/admin.html"
+  status = 200
+
+[[redirects]]
+  from = "/dashboard"
+  to = "/admin.html"
+  status = 200
+
 [build.environment]
   SECRETS_SCAN_ENABLED = "false"
