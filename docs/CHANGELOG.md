@@ -3,6 +3,21 @@
 Todas las modificaciones notables a este proyecto se documentan en este archivo.
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/).
 
+## [1.5.2] — 2026-10-11
+### Añadido & Modificado
+* **Interruptor Maestro de Visibilidad de Precios (`SHOW_PRICES`):**
+  * Centralización en `utils/format.js` de la constante booleana `SHOW_PRICES = false`.
+  * Ocultamiento preventivo de precios provisionales en el catálogo público mientras se definen precios fijos institucionales.
+  * Mantenimiento integral del 100% de la funcionalidad de la plataforma: búsqueda, filtros por categoría/talla, fichas técnicas oficiales, matriz táctica de tallas por lote, carrito de requisición, persistencia y generación de expedientes.
+  * **Catálogo & Tarjetas:** Las tarjetas muestran badge institucional *"Precio a cotizar / PIEZA"* y *"Cotización Formal"* en sustitución de importes monetarios. En selectores de variantes se omiten los costos numéricos.
+  * **Fichas Técnicas & Matriz de Lotes:** Encabezados y sumatorias adaptados para mostrar *"Precio a cotizar"* y *"Total Piezas: X pzas"* preservando el flujo de pedido.
+  * **Panel de Requisición (Carrito):** Desglose de partidas con estatus *"A cotizar"* y resumen con total de piezas solicitadas en lugar de importe en MXN.
+  * **Expediente Documental (PDF Vectorial Carta):** Generación de *"Requisición y Solicitud de Cotización"* con partidas oficiales, tallas y cantidades sin mostrar precios provisionales.
+  * **Mensajería WhatsApp:** Formateo formal de solicitudes indicando piezas requeridas y cotización formal institucional.
+  * **Restauración inmediata:** Conmutar `SHOW_PRICES = true` en `utils/format.js` restaura de forma instantánea todos los precios, subtotales, IVA 16% y montos totales en la plataforma.
+
+---
+
 ## [1.5.1] — 2026-10-05
 ### Corregido & Mejorado
 * **Restauración del Tema Institucional Azul Policía (`#0A192F`):**

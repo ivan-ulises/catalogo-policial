@@ -15,7 +15,7 @@
  *   - Ajusta el texto de GREETING / FOOTER según tu estilo comercial.
  */
 
-import { formatMXN, getFormattedDate } from './format.js';
+import { formatMXN, getFormattedDate, SHOW_PRICES } from './format.js';
 
 // ─── Configuración ─────────────────────────────────────────────
 
@@ -119,21 +119,28 @@ function _buildOrderMessage(items, total, municipio = '') {
   const separator = '─'.repeat(32);
   const productLines = items.map((item, idx) => {
     const subtotal = item.qty * item.unitPrice;
-    return [
+    const lines = [
       `*${idx + 1}. ${item.name}*`,
       `   • SKU: \`${item.sku}\``,
       `   • Talla: *${item.size}* | Cantidad: *${item.qty} pzs*`,
-      `   • Precio unit.: ${formatMXN(item.unitPrice)}`,
-      `   • Subtotal: *${formatMXN(subtotal)}*`,
-    ].join('\n');
+    ];
+    if (SHOW_PRICES) {
+      lines.push(`   • Precio unit.: ${formatMXN(item.unitPrice)}`);
+      lines.push(`   • Subtotal: *${formatMXN(subtotal)}*`);
+    } else {
+      lines.push(`   • Precio: _A cotizar_`);
+    }
+    return lines.join('\n');
   }).join('\n\n');
 
   // ── Resumen ──
   const summary = [
     ``,
     separator,
-    `📦 *Total de piezas: ${totalQty}*`,
-    `💰 *TOTAL ESTIMADO (IVA INCLUIDO): ${formatMXN(total)} MXN*`,
+    `📦 *Total de piezas solicitadas: ${totalQty}*`,
+    SHOW_PRICES
+      ? `💰 *TOTAL ESTIMADO (IVA INCLUIDO): ${formatMXN(total)} MXN*`
+      : `📋 *Precios:* _Sujetos a cotización formal institucional_`,
     separator,
   ].join('\n');
 

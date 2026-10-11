@@ -6,11 +6,21 @@
  * secundarios, sin tocar el DOM).
  *
  * EXPORTACIONES:
+ *   - SHOW_PRICES            → boolean maestro para visibilidad de precios
  *   - formatMXN(amount)      → "$1,850.00"
  *   - getFormattedDate()     → "22 de marzo de 2026, 10:30 a. m."
  *   - slugify(text)          → "uniforme-tactico-operativo"
  *   - clamp(val, min, max)   → número dentro del rango
  */
+
+// ─── Control maestro de visibilidad de precios ──────────────────
+
+/**
+ * Interruptor maestro para mostrar u ocultar precios en el catálogo, cotizador y PDF.
+ * - false: Modo catálogo puro / requisición institucional ("Precio a cotizar").
+ * - true:  Muestra precios unitarios, IVA 16%, subtotales y totales en MXN.
+ */
+export const SHOW_PRICES = false;
 
 // ─── Formateador de moneda ─────────────────────────────────────
 

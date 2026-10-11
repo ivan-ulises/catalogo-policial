@@ -12,7 +12,7 @@
  *   → Usa utilidad:    utils/format.js (formatMXN)
  */
 
-import { formatMXN } from '../utils/format.js';
+import { formatMXN, SHOW_PRICES } from '../utils/format.js';
 
 // ─── Selectores del DOM ────────────────────────────────────────
 
@@ -501,7 +501,7 @@ function _recalculateMatrixCard(productId) {
   const btnLabel = card.querySelector(`.matrix-btn-label-${productId}`);
 
   if (qtyEl) qtyEl.textContent = String(totalQty);
-  if (subtotalEl) subtotalEl.textContent = formatMXN(subtotal);
+  if (subtotalEl) subtotalEl.textContent = SHOW_PRICES ? formatMXN(subtotal) : 'A cotizar';
   if (btnLabel) {
     btnLabel.textContent = totalQty > 0 ? `AÑADIR LOTE (${totalQty} PZAS)` : 'AÑADIR LOTE (0 PZAS)';
   }
@@ -543,7 +543,7 @@ function _handleVariantChange(e) {
   const selectedOption = select.options[select.selectedIndex];
   const newPrice = parseFloat(selectedOption.dataset.price);
 
-  if (priceDisplay && !isNaN(newPrice)) {
+  if (SHOW_PRICES && priceDisplay && !isNaN(newPrice)) {
     priceDisplay.style.transform = 'scale(0.95)';
     priceDisplay.style.opacity = '0.5';
 
@@ -581,7 +581,7 @@ function _handleSlotInput(e) {
   const extras     = Math.max(0, totalSlots - BASE_COMPARTIMIENTOS);
   const newPrice   = basePrice + extras * extraPrice;
 
-  if (priceDisplay) {
+  if (SHOW_PRICES && priceDisplay) {
     priceDisplay.style.transform = 'scale(0.95)';
     priceDisplay.style.opacity   = '0.5';
     setTimeout(() => {
@@ -592,9 +592,15 @@ function _handleSlotInput(e) {
   }
 
   if (extraLabel) {
-    extraLabel.textContent = extras > 0
-      ? `+${extras} extra · +${formatMXN(extras * extraPrice)}`
-      : '';
+    if (SHOW_PRICES) {
+      extraLabel.textContent = extras > 0
+        ? `+${extras} extra · +${formatMXN(extras * extraPrice)}`
+        : '';
+    } else {
+      extraLabel.textContent = extras > 0
+        ? `+${extras} comp. extra`
+        : '';
+    }
   }
 }
 
@@ -996,19 +1002,35 @@ function _buildCardHTML(p, index) {
         </p>
 
         <!-- Precio + unidad de medida -->
-        <div class="flex flex-col mb-3">
-          <div class="flex items-baseline gap-1.5">
-            <span class="price-display font-display text-2xl font-bold text-navy transition-all duration-200">
-              ${formatMXN(p.price)}
-            </span>
-            <span class="text-xs text-gray-400 uppercase tracking-wide">
-              / ${_escapeHTML(p.unit || 'PIEZA')}
+        ${SHOW_PRICES ? `
+          <div class="flex flex-col mb-3">
+            <div class="flex items-baseline gap-1.5">
+              <span class="price-display font-display text-2xl font-bold text-navy transition-all duration-200">
+                ${formatMXN(p.price)}
+              </span>
+              <span class="text-xs text-gray-400 uppercase tracking-wide">
+                / ${_escapeHTML(p.unit || 'PIEZA')}
+              </span>
+            </div>
+            <span class="text-[10px] text-gold-dark font-bold uppercase tracking-widest mt-0.5">
+              IVA Incluido (16%)
             </span>
           </div>
-          <span class="text-[10px] text-gold-dark font-bold uppercase tracking-widest mt-0.5">
-            IVA Incluido (16%)
-          </span>
-        </div>
+        ` : `
+          <div class="flex flex-col mb-3">
+            <div class="flex items-baseline gap-1.5">
+              <span class="price-display inline-flex items-center text-xs font-bold text-navy bg-navy/5 px-2.5 py-1 rounded-md border border-navy/10 tracking-wide uppercase">
+                Precio a cotizar
+              </span>
+              <span class="text-xs text-gray-400 uppercase tracking-wide">
+                / ${_escapeHTML(p.unit || 'PIEZA')}
+              </span>
+            </div>
+            <span class="text-[10px] text-gold-dark font-bold uppercase tracking-widest mt-0.5">
+              Cotización Formal
+            </span>
+          </div>
+        `}
 
         <!-- Selector de variante (si existen) -->
         ${p.variants ? `
@@ -1025,7 +1047,7 @@ function _buildCardHTML(p, index) {
             >
               ${p.variants.map(v => `
                 <option value="${_escapeAttr(v.label)}" data-price="${v.price}">
-                  ${_escapeHTML(v.label)} (${formatMXN(v.price)})
+                  ${_escapeHTML(v.label)}${SHOW_PRICES ? ` (${formatMXN(v.price)})` : ''}
                 </option>
               `).join('')}
             </select>
@@ -1309,9 +1331,9 @@ function _buildCardHTML(p, index) {
                 </div>
               </div>
               <div class="text-right">
-                <span class="text-slate-soft text-[10px] uppercase font-bold tracking-wider">Subtotal:</span>
+                <span class="text-slate-soft text-[10px] uppercase font-bold tracking-wider">${SHOW_PRICES ? 'Subtotal:' : 'Cotización:'}</span>
                 <div class="font-display text-base font-black text-gold matrix-subtotal-${_escapeAttr(p.id)}">
-                  ${formatMXN(0)}
+                  ${SHOW_PRICES ? formatMXN(0) : 'A cotizar'}
                 </div>
               </div>
             </div>
@@ -1510,10 +1532,17 @@ function _openTechSheetModal(product) {
                 <span class="text-xs text-gray-400 font-mono">SKU: ${_escapeHTML(product.sku || product.id)}</span>
               </div>
               <div class="text-right">
-                <span class="font-display text-2xl font-bold text-navy">
-                  ${formatMXN(product.price)}
-                </span>
-                <span class="block text-[10px] text-gold-dark font-bold uppercase">IVA Incluido</span>
+                ${SHOW_PRICES ? `
+                  <span class="font-display text-2xl font-bold text-navy">
+                    ${formatMXN(product.price)}
+                  </span>
+                  <span class="block text-[10px] text-gold-dark font-bold uppercase">IVA Incluido</span>
+                ` : `
+                  <span class="inline-flex items-center text-xs font-bold text-navy bg-navy/5 px-2.5 py-1 rounded-md border border-navy/10 uppercase">
+                    Precio a cotizar
+                  </span>
+                  <span class="block text-[10px] text-gold-dark font-bold uppercase mt-0.5">Requisición Oficial</span>
+                `}
               </div>
             </div>
 
@@ -1688,9 +1717,15 @@ function _openExpandedMatrixModal(product) {
         <div class="bg-navy-light/90 border border-navy-border rounded-xl p-3.5 flex flex-wrap items-center justify-between gap-3">
           <div>
             <span class="text-xs text-slate-soft font-mono">SKU: ${_escapeHTML(product.sku || product.id)}</span>
-            <div class="font-display text-xl font-bold text-white">
-              ${formatMXN(product.price)} <span class="text-xs text-gold font-normal">IVA Incluido</span>
-            </div>
+            ${SHOW_PRICES ? `
+              <div class="font-display text-xl font-bold text-white">
+                ${formatMXN(product.price)} <span class="text-xs text-gold font-normal">IVA Incluido</span>
+              </div>
+            ` : `
+              <div class="font-display text-sm font-bold text-gold uppercase tracking-wider mt-0.5">
+                Precio a cotizar
+              </div>
+            `}
           </div>
 
           ${colorOpts ? `
@@ -1775,9 +1810,9 @@ function _openExpandedMatrixModal(product) {
             </div>
           </div>
           <div class="text-right">
-            <span class="text-xs text-slate-soft uppercase font-bold tracking-wider">Subtotal Lote:</span>
-            <div class="font-display text-2xl font-black text-gold" id="modal-matrix-subtotal">
-              ${formatMXN(0)}
+            <span class="text-xs text-slate-soft uppercase font-bold tracking-wider">${SHOW_PRICES ? 'Subtotal Lote:' : 'Estatus:'}</span>
+            <div class="font-display ${SHOW_PRICES ? 'text-2xl' : 'text-lg'} font-black text-gold" id="modal-matrix-subtotal">
+              ${SHOW_PRICES ? formatMXN(0) : 'A cotizar'}
             </div>
           </div>
         </div>
@@ -1868,7 +1903,7 @@ function _openExpandedMatrixModal(product) {
     const sEl = document.getElementById('modal-matrix-subtotal');
     const bEl = document.getElementById('modal-submit-label');
     if (qEl) qEl.textContent = String(tot);
-    if (sEl) sEl.textContent = formatMXN(sub);
+    if (sEl) sEl.textContent = SHOW_PRICES ? formatMXN(sub) : 'A cotizar';
     if (bEl) bEl.textContent = tot > 0 ? `AÑADIR LOTE (${tot} PZAS) AL PEDIDO` : 'AÑADIR LOTE (0 PZAS) AL PEDIDO';
   }
 

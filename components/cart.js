@@ -15,7 +15,7 @@
  *   → Usa utilidad:   utils/format.js
  */
 
-import { formatMXN } from '../utils/format.js';
+import { formatMXN, SHOW_PRICES } from '../utils/format.js';
 
 // ─── Constantes ────────────────────────────────────────────────
 
@@ -222,12 +222,14 @@ function _buildPanelShell() {
       <div class="bg-navy rounded-xl p-4 flex justify-between items-center shadow-md">
         <div>
           <span class="font-display text-sm text-slate-light tracking-wide block">
-            TOTAL (IVA INCLUIDO):
+            ${SHOW_PRICES ? 'TOTAL (IVA INCLUIDO):' : 'TOTAL DE REQUISICIÓN:'}
           </span>
-          <span class="text-[10px] text-slate-soft">Precios oficiales en MXN</span>
+          <span class="text-[10px] text-slate-soft">
+            ${SHOW_PRICES ? 'Precios oficiales en MXN' : 'Precios a cotizar formalmente'}
+          </span>
         </div>
-        <span id="cart-total-display" class="font-display text-2xl font-bold text-gold">
-          $0.00
+        <span id="cart-total-display" class="font-display ${SHOW_PRICES ? 'text-2xl' : 'text-lg'} font-bold text-gold">
+          ${SHOW_PRICES ? '$0.00' : '0 piezas'}
         </span>
       </div>
 
@@ -609,9 +611,15 @@ function _render() {
           </svg>
         </button>
         <!-- Subtotal de la partida -->
-        <span class="font-display text-sm font-bold text-navy">
-          ${formatMXN(item.qty * item.unitPrice)}
-        </span>
+        ${SHOW_PRICES ? `
+          <span class="font-display text-sm font-bold text-navy">
+            ${formatMXN(item.qty * item.unitPrice)}
+          </span>
+        ` : `
+          <span class="text-xs font-semibold text-gray-400 italic">
+            A cotizar
+          </span>
+        `}
       </div>
     </div>
   `).join('');
@@ -623,7 +631,9 @@ function _render() {
 
   // Footer y totales
   footer?.classList.remove('hidden');
-  if (totalEl) totalEl.textContent = formatMXN(totalPrice);
+  if (totalEl) {
+    totalEl.textContent = SHOW_PRICES ? formatMXN(totalPrice) : `${totalQty} pieza${totalQty === 1 ? '' : 's'}`;
+  }
 
   // Notificar cambio a main.js
   document.dispatchEvent(new CustomEvent('cart:updated', {

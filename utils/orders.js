@@ -16,7 +16,7 @@
  *     - Destrucción inmediata del DOM al cerrar.
  */
 
-import { formatMXN, getFormattedDate } from './format.js';
+import { formatMXN, getFormattedDate, SHOW_PRICES } from './format.js';
 
 // ╔══════════════════════════════════════════════════════════════╗
 // ║  CONFIGURACIÓN INSTITUCIONAL                                 ║
@@ -377,17 +377,39 @@ function _openClientModal() {
                   <th class="text-center">COLOR</th>
                   <th class="text-center">TALLA</th>
                   <th class="text-center">CANT.</th>
-                  <th class="text-right">PRECIO UNIT.</th>
-                  <th class="text-right">IVA 16%</th>
-                  <th class="text-right">SUBTOTAL</th>
+                  ${SHOW_PRICES ? `
+                    <th class="text-right">PRECIO UNIT.</th>
+                    <th class="text-right">IVA 16%</th>
+                    <th class="text-right">SUBTOTAL</th>
+                  ` : `
+                    <th class="text-right">ESTATUS PRECIO</th>
+                  `}
                 </tr>
               </thead>
               <tbody>${_buildTableARows(items)}</tbody>
               <tfoot>
                 ${(function() {
                   const totalGral      = items.reduce((s, i) => s + i.qty * i.unitPrice, 0);
+                  const totalPiezas    = items.reduce((s, i) => s + i.qty, 0);
                   const subtotalSinIva = totalGral / 1.16;
                   const ivaTotal       = totalGral - subtotalSinIva;
+                  if (!SHOW_PRICES) {
+                    return `
+                      <tr class="bg-navy/5">
+                        <td colspan="4" class="text-right font-display font-bold text-navy text-sm px-4 py-3">
+                          TOTAL DE PIEZAS SOLICITADAS:
+                        </td>
+                        <td class="text-right font-display font-bold text-navy text-base px-4 py-3">
+                          ${totalPiezas} piezas
+                        </td>
+                      </tr>
+                      <tr>
+                        <td colspan="5" class="text-right text-xs text-gray-500 italic px-4 py-2">
+                          * Precios unitarios e importes finales sujetos a cotización formal institucional.
+                        </td>
+                      </tr>
+                    `;
+                  }
                   return `
                     <tr>
                       <td colspan="6" class="text-right font-semibold text-gray-600 text-sm px-4 py-2">
@@ -745,8 +767,8 @@ function _renderSuccessScreen(folio, applicant, generatedPdf, items, total) {
           <strong class="text-navy">${totalPiezas} piezas</strong>
         </div>
         <div class="flex justify-between pt-1.5 border-t border-slate-200">
-          <span class="text-navy font-bold">Importe Total con IVA:</span>
-          <strong class="text-gold-dark font-display text-lg font-bold">${formatMXN(total)}</strong>
+          <span class="text-navy font-bold">${SHOW_PRICES ? 'Importe Total con IVA:' : 'Estatus de Precios:'}</span>
+          <strong class="text-gold-dark font-display text-lg font-bold">${SHOW_PRICES ? formatMXN(total) : 'A cotizar institucionalmente'}</strong>
         </div>
       </div>
 
@@ -759,7 +781,7 @@ function _renderSuccessScreen(folio, applicant, generatedPdf, items, total) {
             <path stroke-linecap="round" stroke-linejoin="round"
                   d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
           </svg>
-          DESCARGAR COTIZACIÓN EN PDF (CARTA)
+          DESCARGAR ${SHOW_PRICES ? 'COTIZACIÓN' : 'REQUISICIÓN'} EN PDF (CARTA)
         </button>
 
         <!-- Continuar por WhatsApp con el folio ya incluido -->
@@ -803,9 +825,9 @@ function _renderSuccessScreen(folio, applicant, generatedPdf, items, total) {
   // WhatsApp con Folio
   document.getElementById('btn-success-whatsapp')?.addEventListener('click', () => {
     const waText = encodeURIComponent(
-      `Hola Suministros A. R., registré la cotización institucional con Folio *${folio}* ` +
-      `para el Municipio de *${applicant.municipio}* (${totalPiezas} piezas, Total: ${formatMXN(total)}). ` +
-      `Adjunto daré seguimiento para revisión técnica y tiempos de entrega.`
+      `Hola Suministros A. R., registré la solicitud institucional con Folio *${folio}* ` +
+      `para el Municipio de *${applicant.municipio}* (${totalPiezas} piezas${SHOW_PRICES ? `, Total: ${formatMXN(total)}` : ''}). ` +
+      `Adjunto daré seguimiento para cotización formal y tiempos de entrega.`
     );
     window.open(`https://wa.me/529513070420?text=${waText}`, '_blank');
   });
@@ -923,6 +945,15 @@ function _buildInvoicePDF(items, dateStr, applicant, folio) {
   // 3. Tabla de Partidas con AutoTable
   const rows = items.map(item => {
     const unitBase = item.unitPrice / 1.16;
+    if (!SHOW_PRICES) {
+      return [
+        '', // Dibujado a mano en didDrawCell
+        item.color || '—',
+        item.size || '—',
+        String(item.qty),
+        'A cotizar',
+      ];
+    }
     return [
       '', // Dibujado a mano en didDrawCell
       item.color || '—',
@@ -934,13 +965,33 @@ function _buildInvoicePDF(items, dateStr, applicant, folio) {
     ];
   });
 
-  const colProdW = 195;
+  const colProdW = SHOW_PRICES ? 195 : 290;
+  const headCols = SHOW_PRICES
+    ? [['PARTIDA / PRODUCTO / SKU', 'COLOR', 'TALLA', 'CANT.', 'PRECIO U.', 'IVA 16%', 'SUBTOTAL']]
+    : [['PARTIDA / PRODUCTO / SKU', 'COLOR', 'TALLA', 'CANT.', 'CONDICIÓN / PRECIO']];
+
+  const columnStyles = SHOW_PRICES ? {
+    0: { cellWidth: colProdW, halign: 'left' },
+    1: { cellWidth: 50, halign: 'center' },
+    2: { cellWidth: 45, halign: 'center' },
+    3: { cellWidth: 40, halign: 'center', fontStyle: 'bold' },
+    4: { cellWidth: 70, halign: 'right' },
+    5: { cellWidth: 65, halign: 'right' },
+    6: { cellWidth: 75, halign: 'right', fontStyle: 'bold' },
+  } : {
+    0: { cellWidth: colProdW, halign: 'left' },
+    1: { cellWidth: 65, halign: 'center' },
+    2: { cellWidth: 55, halign: 'center' },
+    3: { cellWidth: 50, halign: 'center', fontStyle: 'bold' },
+    4: { cellWidth: 80, halign: 'center', fontStyle: 'italic' },
+  };
+
   doc.autoTable({
     startY: 176,
     margin: { left: M, right: M, top: 40, bottom: 65 },
     rowPageBreak: 'avoid',
     showHead: 'everyPage',
-    head: [['PARTIDA / PRODUCTO / SKU', 'COLOR', 'TALLA', 'CANT.', 'PRECIO U.', 'IVA 16%', 'SUBTOTAL']],
+    head: headCols,
     body: rows,
     theme: 'plain',
     styles: {
@@ -961,19 +1012,11 @@ function _buildInvoicePDF(items, dateStr, applicant, folio) {
       valign: 'middle',
       cellPadding: 6
     },
-    columnStyles: {
-      0: { cellWidth: colProdW, halign: 'left' },
-      1: { cellWidth: 50, halign: 'center' },
-      2: { cellWidth: 45, halign: 'center' },
-      3: { cellWidth: 40, halign: 'center', fontStyle: 'bold' },
-      4: { cellWidth: 70, halign: 'right' },
-      5: { cellWidth: 65, halign: 'right' },
-      6: { cellWidth: 75, halign: 'right', fontStyle: 'bold' },
-    },
+    columnStyles,
     alternateRowStyles: { fillColor: LIGHT },
     didParseCell: (data) => {
       if (data.section === 'head' && data.column.index === 0) data.cell.styles.halign = 'left';
-      if (data.section === 'head' && data.column.index >= 4) data.cell.styles.halign = 'right';
+      if (SHOW_PRICES && data.section === 'head' && data.column.index >= 4) data.cell.styles.halign = 'right';
       if (data.section === 'body' && data.column.index === 0) {
         const it = items[data.row.index];
         const detail = [it.variant, it.slotInfo].filter(Boolean).join(' · ');
@@ -1026,23 +1069,43 @@ function _buildInvoicePDF(items, dateStr, applicant, folio) {
   doc.setFillColor(...LIGHT);
   doc.roundedRect(bx, y, bw, 48, 4, 4, 'FD');
   
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8.5);
-  doc.setTextColor(71, 85, 105);
-  doc.text('Subtotal sin IVA:', bx + 12, y + 17);
-  doc.text(money(subtotalSinIva), bx + bw - 12, y + 17, { align: 'right' });
-  
-  doc.text('IVA Trasladado (16%):', bx + 12, y + 36);
-  doc.text(money(ivaTotal), bx + bw - 12, y + 36, { align: 'right' });
+  if (SHOW_PRICES) {
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(71, 85, 105);
+    doc.text('Subtotal sin IVA:', bx + 12, y + 17);
+    doc.text(money(subtotalSinIva), bx + bw - 12, y + 17, { align: 'right' });
+    
+    doc.text('IVA Trasladado (16%):', bx + 12, y + 36);
+    doc.text(money(ivaTotal), bx + bw - 12, y + 36, { align: 'right' });
 
-  doc.setFillColor(...NAVY);
-  doc.roundedRect(bx, y + 54, bw, 28, 4, 4, 'F');
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9.5);
-  doc.setTextColor(...GOLD);
-  doc.text('TOTAL GENERAL (c/IVA):', bx + 12, y + 72);
-  doc.setFontSize(12);
-  doc.text(money(totalGral), bx + bw - 12, y + 73, { align: 'right' });
+    doc.setFillColor(...NAVY);
+    doc.roundedRect(bx, y + 54, bw, 28, 4, 4, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9.5);
+    doc.setTextColor(...GOLD);
+    doc.text('TOTAL GENERAL (c/IVA):', bx + 12, y + 72);
+    doc.setFontSize(12);
+    doc.text(money(totalGral), bx + bw - 12, y + 73, { align: 'right' });
+  } else {
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(71, 85, 105);
+    doc.text('Documento:', bx + 12, y + 17);
+    doc.text('Requisición Institucional', bx + bw - 12, y + 17, { align: 'right' });
+    
+    doc.text('Estatus Económico:', bx + 12, y + 36);
+    doc.text('Precios a cotizar', bx + bw - 12, y + 36, { align: 'right' });
+
+    doc.setFillColor(...NAVY);
+    doc.roundedRect(bx, y + 54, bw, 28, 4, 4, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9.5);
+    doc.setTextColor(...GOLD);
+    doc.text('TOTAL PIEZAS SOLICITADAS:', bx + 12, y + 72);
+    doc.setFontSize(12);
+    doc.text(`${totalPiezas} PZAS`, bx + bw - 12, y + 73, { align: 'right' });
+  }
 
   // Resumen a la izquierda de los totales
   doc.setFont('helvetica', 'bold');
@@ -1083,7 +1146,9 @@ function _buildInvoicePDF(items, dateStr, applicant, folio) {
     '2. Tiempo de entrega: 21 días hábiles posteriores a la confirmación formal del pedido y recepción de anticipo (sistema de maquila especializada).',
     '3. Condiciones de pago: 50% de anticipo al inicio de producción y 50% finiquito contra aviso de embarque o entrega física.',
     '4. Garantía: 90 días naturales contra defectos de confección o vicios ocultos de materiales en uso normal.',
-    '5. Variación de precios: Precios en MXN, IVA 16% incluido. Sujetos a confirmación formal mediante contrato o pedido institucional.'
+    SHOW_PRICES
+      ? '5. Variación de precios: Precios en MXN, IVA 16% incluido. Sujetos a confirmación formal mediante contrato o pedido institucional.'
+      : '5. Precios institucionales: Los precios formales serán proporcionados por la dirección comercial en la propuesta económica definitiva.'
   ];
 
   condiciones.forEach((c, idx) => {
@@ -1138,11 +1203,17 @@ function _buildTableARows(items) {
         </td>
         <td class="px-3 py-2.5 text-center font-bold">${_esc(item.size)}</td>
         <td class="px-3 py-2.5 text-center font-bold text-navy">${item.qty}</td>
-        <td class="px-4 py-2.5 text-right text-gray-700">${formatMXN(unitPriceBase)}</td>
-        <td class="px-4 py-2.5 text-right text-gray-500 text-sm">${formatMXN(ivaUnitario)}</td>
-        <td class="px-4 py-2.5 text-right font-bold text-navy">
-          ${formatMXN(totalLinea)}
-        </td>
+        ${SHOW_PRICES ? `
+          <td class="px-4 py-2.5 text-right text-gray-700">${formatMXN(unitPriceBase)}</td>
+          <td class="px-4 py-2.5 text-right text-gray-500 text-sm">${formatMXN(ivaUnitario)}</td>
+          <td class="px-4 py-2.5 text-right font-bold text-navy">
+            ${formatMXN(totalLinea)}
+          </td>
+        ` : `
+          <td class="px-4 py-2.5 text-right text-xs font-semibold text-gray-500 italic">
+            A cotizar
+          </td>
+        `}
       </tr>
     `;
   }).join('');
@@ -1171,6 +1242,7 @@ function _buildTableBRows(items) {
 
 function _printClientOnly(items, total, dateStr, applicant) {
   const totalGral      = items.reduce((s, i) => s + i.qty * i.unitPrice, 0);
+  const totalPiezas    = items.reduce((s, i) => s + i.qty, 0);
   const subtotalSinIva = totalGral / 1.16;
   const ivaTotal       = totalGral - subtotalSinIva;
   const folio          = "COT-" + Date.now().toString(36).toUpperCase();
@@ -1189,9 +1261,13 @@ function _printClientOnly(items, total, dateStr, applicant) {
         <td style="text-align:center">${item.color || '—'}</td>
         <td style="text-align:center;font-weight:bold">${_esc(item.size)}</td>
         <td style="text-align:center;font-weight:bold">${item.qty}</td>
-        <td style="text-align:right">${formatMXN(unitBase)}</td>
-        <td style="text-align:right">${formatMXN(ivaUnit)}</td>
-        <td style="text-align:right;font-weight:bold">${formatMXN(subtotal)}</td>
+        ${SHOW_PRICES ? `
+          <td style="text-align:right">${formatMXN(unitBase)}</td>
+          <td style="text-align:right">${formatMXN(ivaUnit)}</td>
+          <td style="text-align:right;font-weight:bold">${formatMXN(subtotal)}</td>
+        ` : `
+          <td style="text-align:right;font-style:italic;color:#666">A cotizar</td>
+        `}
       </tr>
     `;
   }).join('');
@@ -1199,7 +1275,7 @@ function _printClientOnly(items, total, dateStr, applicant) {
   const win = window.open('', '_blank', 'width=1000,height=800');
   if (!win) { window.print(); return; }
 
-  win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Cotización ${folio}</title>
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>${SHOW_PRICES ? 'Cotización' : 'Requisición'} ${folio}</title>
     <style>
       body{font-family:'Segoe UI',sans-serif;margin:30px;color:#112240;font-size:11px}
       .hdr{background:#0A192F;color:#FFD700;padding:15px;border-radius:6px;display:flex;justify-content:space-between}
@@ -1220,12 +1296,16 @@ function _printClientOnly(items, total, dateStr, applicant) {
         <strong>Titular:</strong> ${_esc(applicant.solicitante)} | <strong>Tel:</strong> ${_esc(applicant.telefono)} | <strong>Email:</strong> ${_esc(applicant.email)}
       </div>
       <table>
-        <thead><tr><th>Partida / Producto</th><th>Color</th><th>Talla</th><th>Cant.</th><th>Precio U.</th><th>IVA 16%</th><th>Subtotal</th></tr></thead>
+        <thead><tr><th>Partida / Producto</th><th>Color</th><th>Talla</th><th>Cant.</th>${SHOW_PRICES ? '<th>Precio U.</th><th>IVA 16%</th><th>Subtotal</th>' : '<th>Estatus</th>'}</tr></thead>
         <tbody>${rowsHTML}</tbody>
         <tfoot>
-          <tr class="tot"><td colspan="6" style="text-align:right">Subtotal s/IVA:</td><td style="text-align:right">${formatMXN(subtotalSinIva)}</td></tr>
-          <tr class="tot"><td colspan="6" style="text-align:right">IVA 16%:</td><td style="text-align:right">${formatMXN(ivaTotal)}</td></tr>
-          <tr style="background:#0A192F;color:#FFD700;font-weight:bold"><td colspan="6" style="text-align:right">TOTAL C/IVA:</td><td style="text-align:right">${formatMXN(totalGral)}</td></tr>
+          ${SHOW_PRICES ? `
+            <tr class="tot"><td colspan="6" style="text-align:right">Subtotal s/IVA:</td><td style="text-align:right">${formatMXN(subtotalSinIva)}</td></tr>
+            <tr class="tot"><td colspan="6" style="text-align:right">IVA 16%:</td><td style="text-align:right">${formatMXN(ivaTotal)}</td></tr>
+            <tr style="background:#0A192F;color:#FFD700;font-weight:bold"><td colspan="6" style="text-align:right">TOTAL C/IVA:</td><td style="text-align:right">${formatMXN(totalGral)}</td></tr>
+          ` : `
+            <tr style="background:#0A192F;color:#FFD700;font-weight:bold"><td colspan="4" style="text-align:right">TOTAL PIEZAS:</td><td style="text-align:right">${totalPiezas} PZAS</td></tr>
+          `}
         </tfoot>
       </table>
       <div class="cond">
